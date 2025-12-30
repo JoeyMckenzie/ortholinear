@@ -1,5 +1,6 @@
 use crate::api::Issue;
 use crate::app::{App, Mode};
+use crate::markdown::render_markdown;
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
@@ -140,7 +141,7 @@ fn render_issue_detail(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn build_detail_content(issue: &Issue) -> Vec<Line<'_>> {
+fn build_detail_content(issue: &Issue) -> Vec<Line<'static>> {
     let priority_label = match issue.priority {
         0 => ("No priority", Color::DarkGray),
         1 => ("Urgent", Color::Red),
@@ -161,26 +162,24 @@ fn build_detail_content(issue: &Issue) -> Vec<Line<'_>> {
     let assignee = issue
         .assignee
         .as_ref()
-        .map(|a| a.name.as_str())
-        .unwrap_or("Unassigned");
+        .map(|a| a.name.clone())
+        .unwrap_or_else(|| "Unassigned".to_string());
 
     let project = issue
         .project
         .as_ref()
-        .map(|p| p.name.as_str())
-        .unwrap_or("None");
+        .map(|p| p.name.clone())
+        .unwrap_or_else(|| "None".to_string());
 
-    let description = issue.description.as_deref().unwrap_or("No description");
-
-    vec![
+    let mut lines = vec![
         Line::from(vec![
             Span::styled("Title: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&issue.title, Style::default().bold()),
+            Span::styled(issue.title.clone(), Style::default().bold()),
         ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("Status: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(&issue.state.name, Style::default().fg(status_color)),
+            Span::styled(issue.state.name.clone(), Style::default().fg(status_color)),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -207,8 +206,20 @@ fn build_detail_content(issue: &Issue) -> Vec<Line<'_>> {
             "Description:",
             Style::default().fg(Color::DarkGray),
         )),
-        Line::from(description),
-    ]
+        Line::from(""),
+    ];
+
+    if let Some(description) = &issue.description {
+        let markdown_lines = render_markdown(description);
+        lines.extend(markdown_lines);
+    } else {
+        lines.push(Line::from(Span::styled(
+            "No description",
+            Style::default().fg(Color::DarkGray).italic(),
+        )));
+    }
+
+    lines
 }
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
