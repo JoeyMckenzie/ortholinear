@@ -24,6 +24,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         Mode::TeamSelect => render_team_picker(frame, app),
         Mode::CycleSelect => render_cycle_picker(frame, app),
         Mode::StatusSelect => render_status_picker(frame, app),
+        Mode::IssueFilter => render_issue_filter(frame, app),
         Mode::Normal => {}
     }
 
@@ -49,6 +50,12 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         .map(|c| c.display_name())
         .unwrap_or_else(|| "No cycle".to_string());
 
+    let filter_indicator = if !app.issue_filter.is_empty() {
+        format!(" [filter: {}]", app.issue_filter)
+    } else {
+        String::new()
+    };
+
     let header = Paragraph::new(Line::from(vec![
         Span::styled(" [Team: ", Style::default().fg(Color::DarkGray)),
         Span::styled(team_name, Style::default().fg(Color::Cyan)),
@@ -56,6 +63,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled("[Cycle: ", Style::default().fg(Color::DarkGray)),
         Span::styled(cycle_name, Style::default().fg(Color::Cyan)),
         Span::styled("]", Style::default().fg(Color::DarkGray)),
+        Span::styled(filter_indicator, Style::default().fg(Color::Magenta)),
     ]))
     .block(
         Block::default()
@@ -83,10 +91,11 @@ fn render_main(frame: &mut Frame, app: &App, area: Rect) {
 
 fn render_issue_list(frame: &mut Frame, app: &App, area: Rect) {
     let items: Vec<ListItem> = app
-        .issues
+        .filtered_issues
         .iter()
         .enumerate()
-        .map(|(i, issue)| {
+        .map(|(i, filtered)| {
+            let issue = &filtered.item;
             let style = if i == app.selected_issue_index {
                 Style::default().fg(Color::Yellow).bold()
             } else {
@@ -108,8 +117,13 @@ fn render_issue_list(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let issue_count = app.issues.len();
-    let title = format!(" Issues ({}) ", issue_count);
+    let filtered_count = app.filtered_issues.len();
+    let total_count = app.issues.len();
+    let title = if filtered_count == total_count {
+        format!(" Issues ({}) ", total_count)
+    } else {
+        format!(" Issues ({}/{}) ", filtered_count, total_count)
+    };
 
     let list = List::new(items).block(
         Block::default()
@@ -224,22 +238,42 @@ fn build_detail_content(issue: &Issue) -> Vec<Line<'static>> {
 
 fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
     let help_text = match app.mode {
-        Mode::Normal => Line::from(vec![
-            Span::styled(" j/k", Style::default().fg(Color::Yellow)),
-            Span::styled(": nav  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("s", Style::default().fg(Color::Yellow)),
-            Span::styled(": status  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("t", Style::default().fg(Color::Yellow)),
-            Span::styled(": team  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("c", Style::default().fg(Color::Yellow)),
-            Span::styled(": cycle  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("r", Style::default().fg(Color::Yellow)),
-            Span::styled(": refresh  ", Style::default().fg(Color::DarkGray)),
-            Span::styled("q", Style::default().fg(Color::Yellow)),
-            Span::styled(": quit", Style::default().fg(Color::DarkGray)),
+        Mode::Normal => {
+            let mut spans = vec![
+                Span::styled(" j/k", Style::default().fg(Color::Yellow)),
+                Span::styled(": nav  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("/", Style::default().fg(Color::Yellow)),
+                Span::styled(": filter  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("s", Style::default().fg(Color::Yellow)),
+                Span::styled(": status  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("t", Style::default().fg(Color::Yellow)),
+                Span::styled(": team  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("c", Style::default().fg(Color::Yellow)),
+                Span::styled(": cycle  ", Style::default().fg(Color::DarkGray)),
+            ];
+            if !app.issue_filter.is_empty() {
+                spans.push(Span::styled("x", Style::default().fg(Color::Yellow)));
+                spans.push(Span::styled(
+                    ": clear  ",
+                    Style::default().fg(Color::DarkGray),
+                ));
+            }
+            spans.push(Span::styled("q", Style::default().fg(Color::Yellow)));
+            spans.push(Span::styled(": quit", Style::default().fg(Color::DarkGray)));
+            Line::from(spans)
+        }
+        Mode::IssueFilter => Line::from(vec![
+            Span::styled(" Type to filter  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Tab/↓↑", Style::default().fg(Color::Yellow)),
+            Span::styled(": navigate  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Enter", Style::default().fg(Color::Yellow)),
+            Span::styled(": confirm  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Esc", Style::default().fg(Color::Yellow)),
+            Span::styled(": cancel", Style::default().fg(Color::DarkGray)),
         ]),
         _ => Line::from(vec![
-            Span::styled(" j/k", Style::default().fg(Color::Yellow)),
+            Span::styled(" Type to filter  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Tab/↓↑", Style::default().fg(Color::Yellow)),
             Span::styled(": navigate  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Enter", Style::default().fg(Color::Yellow)),
             Span::styled(": select  ", Style::default().fg(Color::DarkGray)),
@@ -277,15 +311,91 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
+fn render_filter_input(frame: &mut Frame, filter: &str, area: Rect) {
+    let input = Paragraph::new(Line::from(vec![
+        Span::styled("> ", Style::default().fg(Color::Cyan)),
+        Span::raw(filter),
+        Span::styled("█", Style::default().fg(Color::Cyan)), // Cursor
+    ]))
+    .block(Block::default().borders(Borders::TOP));
+
+    frame.render_widget(input, area);
+}
+
+fn render_issue_filter(frame: &mut Frame, app: &App) {
+    let area = centered_rect(50, 60, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Filter Issues ")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let inner_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Filter input
+            Constraint::Min(0),    // List
+        ])
+        .split(inner);
+
+    render_filter_input(frame, &app.issue_filter, inner_chunks[0]);
+
+    let items: Vec<ListItem> = app
+        .filtered_issues
+        .iter()
+        .enumerate()
+        .map(|(i, filtered)| {
+            let issue = &filtered.item;
+            let style = if i == app.selected_issue_index {
+                Style::default().fg(Color::Yellow).bold()
+            } else {
+                Style::default()
+            };
+            let prefix = if i == app.selected_issue_index {
+                "> "
+            } else {
+                "  "
+            };
+            ListItem::new(format!("{}{} {}", prefix, issue.identifier, issue.title)).style(style)
+        })
+        .collect();
+
+    let list = List::new(items);
+    frame.render_widget(list, inner_chunks[1]);
+}
+
 fn render_team_picker(frame: &mut Frame, app: &App) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Select Team ")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Filter input
+            Constraint::Min(0),    // List
+        ])
+        .split(inner);
+
+    render_filter_input(frame, &app.team_filter, chunks[0]);
+
     let items: Vec<ListItem> = app
-        .teams
+        .filtered_teams
         .iter()
         .enumerate()
-        .map(|(i, team)| {
+        .map(|(i, filtered)| {
+            let team = &filtered.item;
             let style = if i == app.selected_team_index {
                 Style::default().fg(Color::Yellow).bold()
             } else {
@@ -300,25 +410,38 @@ fn render_team_picker(frame: &mut Frame, app: &App) {
         })
         .collect();
 
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Select Team ")
-            .border_style(Style::default().fg(Color::Cyan)),
-    );
-
-    frame.render_widget(list, area);
+    let list = List::new(items);
+    frame.render_widget(list, chunks[1]);
 }
 
 fn render_cycle_picker(frame: &mut Frame, app: &App) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Select Cycle ")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Filter input
+            Constraint::Min(0),    // List
+        ])
+        .split(inner);
+
+    render_filter_input(frame, &app.cycle_filter, chunks[0]);
+
     let items: Vec<ListItem> = app
-        .cycles
+        .filtered_cycles
         .iter()
         .enumerate()
-        .map(|(i, cycle)| {
+        .map(|(i, filtered)| {
+            let cycle = &filtered.item;
             let style = if i == app.selected_cycle_index {
                 Style::default().fg(Color::Yellow).bold()
             } else {
@@ -333,25 +456,38 @@ fn render_cycle_picker(frame: &mut Frame, app: &App) {
         })
         .collect();
 
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Select Cycle ")
-            .border_style(Style::default().fg(Color::Cyan)),
-    );
-
-    frame.render_widget(list, area);
+    let list = List::new(items);
+    frame.render_widget(list, chunks[1]);
 }
 
 fn render_status_picker(frame: &mut Frame, app: &App) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Set Status ")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Filter input
+            Constraint::Min(0),    // List
+        ])
+        .split(inner);
+
+    render_filter_input(frame, &app.status_filter, chunks[0]);
+
     let items: Vec<ListItem> = app
-        .workflow_states
+        .filtered_states
         .iter()
         .enumerate()
-        .map(|(i, state)| {
+        .map(|(i, filtered)| {
+            let state = &filtered.item;
             let style = if i == app.selected_status_index {
                 Style::default().fg(Color::Yellow).bold()
             } else {
@@ -366,14 +502,8 @@ fn render_status_picker(frame: &mut Frame, app: &App) {
         })
         .collect();
 
-    let list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Set Status ")
-            .border_style(Style::default().fg(Color::Cyan)),
-    );
-
-    frame.render_widget(list, area);
+    let list = List::new(items);
+    frame.render_widget(list, chunks[1]);
 }
 
 fn render_error_popup(frame: &mut Frame, error: &str) {
