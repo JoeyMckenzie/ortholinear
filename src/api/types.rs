@@ -55,6 +55,28 @@ impl Cycle {
             .clone()
             .unwrap_or_else(|| format!("Cycle {}", self.number))
     }
+
+    pub fn display_with_dates(&self) -> String {
+        let name = self.display_name();
+        match (&self.starts_at, &self.ends_at) {
+            (Some(start), Some(end)) => {
+                // Format dates as MM/DD
+                let start_formatted = format_date_short(start);
+                let end_formatted = format_date_short(end);
+                format!("{} ({} - {})", name, start_formatted, end_formatted)
+            }
+            _ => name,
+        }
+    }
+}
+
+fn format_date_short(date_str: &str) -> String {
+    use chrono::NaiveDate;
+    if let Ok(date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+        date.format("%m/%d").to_string()
+    } else {
+        date_str.to_string()
+    }
 }
 
 #[derive(Debug, Deserialize)]
