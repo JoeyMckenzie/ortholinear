@@ -1187,6 +1187,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn init_applies_my_issues_default() {
+        use crate::config::AssigneeDefault;
+
+        let mut config = mock_config();
+        config.defaults.assignee = AssigneeDefault::Me;
+
+        let mut app = App::new(MockClient::new(), config);
+        app.init().await.unwrap();
+
+        assert!(app.filter_my_issues);
+    }
+
+    #[tokio::test]
+    async fn init_no_assignee_default_means_all_issues() {
+        let config = mock_config(); // defaults to AssigneeDefault::None
+
+        let mut app = App::new(MockClient::new(), config);
+        app.init().await.unwrap();
+
+        assert!(!app.filter_my_issues);
+    }
+
+    #[tokio::test]
     async fn init_applies_current_cycle_default() {
         use crate::config::CycleDefault;
 
