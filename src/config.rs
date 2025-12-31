@@ -6,6 +6,29 @@ use std::{env, fs};
 const ENV_VAR_NAME: &str = "LINEAR_API_KEY";
 const CONFIG_FILE_NAME: &str = "config.toml";
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum CycleDefault {
+    #[default]
+    None,
+    Current,
+    Number(i32),
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum AssigneeDefault {
+    #[default]
+    None,
+    Me,
+    Name(String),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DefaultsConfig {
+    pub team: Option<String>,
+    pub cycle: CycleDefault,
+    pub assignee: AssigneeDefault,
+}
+
 #[derive(Debug, Deserialize)]
 struct ConfigFile {
     api_key: String,
@@ -208,5 +231,28 @@ mod tests {
 
         assert!(debug_str.contains("Config"));
         assert!(debug_str.contains("api_key"));
+    }
+
+    #[test]
+    fn parses_defaults_section() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+api_key = "lin_api_test"
+
+[defaults]
+team = "Engineering"
+cycle = "current"
+assignee = "me"
+"#;
+
+        let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
+        let mut file = fs::File::create(&config_path).unwrap();
+        file.write_all(config_content.as_bytes()).unwrap();
+
+        let config = load_from_file(temp_dir.path()).unwrap();
+
+        assert_eq!(config.defaults.team, Some("Engineering".to_string()));
+        assert_eq!(config.defaults.cycle, CycleDefault::Current);
+        assert_eq!(config.defaults.assignee, AssigneeDefault::Me);
     }
 }
