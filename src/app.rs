@@ -1,4 +1,4 @@
-use crate::api::{Cycle, Issue, LinearApi, Team, WorkflowState};
+use crate::api::{Cycle, Issue, LinearApi, Team, User, WorkflowState};
 use crate::fuzzy::{filter_items, FilteredItem};
 use anyhow::Result;
 
@@ -42,6 +42,9 @@ pub struct App<C: LinearApi> {
     pub current_team: Option<Team>,
     pub current_cycle: Option<Cycle>,
 
+    pub viewer: Option<User>,
+    pub filter_my_issues: bool,
+
     pub loading: bool,
     pub error: Option<String>,
 
@@ -73,6 +76,8 @@ impl<C: LinearApi> App<C> {
             selected_status_index: 0,
             current_team: None,
             current_cycle: None,
+            viewer: None,
+            filter_my_issues: false,
             loading: false,
             error: None,
             detail_scroll_offset: 0,
@@ -144,8 +149,13 @@ impl<C: LinearApi> App<C> {
 
         let team_id = self.current_team.as_ref().map(|t| t.id.as_str());
         let cycle_id = self.current_cycle.as_ref().map(|c| c.id.as_str());
+        let assignee_id = if self.filter_my_issues {
+            self.viewer.as_ref().map(|v| v.id.as_str())
+        } else {
+            None
+        };
 
-        match self.client.fetch_issues(team_id, cycle_id).await {
+        match self.client.fetch_issues(team_id, cycle_id, assignee_id).await {
             Ok(issues) => {
                 self.issues = issues;
                 self.issue_filter.clear();
