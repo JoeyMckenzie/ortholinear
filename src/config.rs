@@ -306,4 +306,58 @@ assignee = "me"
         assert_eq!(config.defaults.cycle, CycleDefault::Current);
         assert_eq!(config.defaults.assignee, AssigneeDefault::Me);
     }
+
+    #[test]
+    fn missing_defaults_uses_none() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"api_key = "lin_api_test""#;
+
+        let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
+        let mut file = fs::File::create(&config_path).unwrap();
+        file.write_all(config_content.as_bytes()).unwrap();
+
+        let config = load_from_file(temp_dir.path()).unwrap();
+
+        assert_eq!(config.defaults.team, None);
+        assert_eq!(config.defaults.cycle, CycleDefault::None);
+        assert_eq!(config.defaults.assignee, AssigneeDefault::None);
+    }
+
+    #[test]
+    fn cycle_number_parses() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+api_key = "lin_api_test"
+
+[defaults]
+cycle = "5"
+"#;
+
+        let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
+        let mut file = fs::File::create(&config_path).unwrap();
+        file.write_all(config_content.as_bytes()).unwrap();
+
+        let config = load_from_file(temp_dir.path()).unwrap();
+
+        assert_eq!(config.defaults.cycle, CycleDefault::Number(5));
+    }
+
+    #[test]
+    fn assignee_name_parses() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+api_key = "lin_api_test"
+
+[defaults]
+assignee = "Joey McKenzie"
+"#;
+
+        let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
+        let mut file = fs::File::create(&config_path).unwrap();
+        file.write_all(config_content.as_bytes()).unwrap();
+
+        let config = load_from_file(temp_dir.path()).unwrap();
+
+        assert_eq!(config.defaults.assignee, AssigneeDefault::Name("Joey McKenzie".to_string()));
+    }
 }
