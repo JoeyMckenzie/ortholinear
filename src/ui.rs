@@ -298,6 +298,8 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
                 Span::styled(": team  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("c", Style::default().fg(Color::Yellow)),
                 Span::styled(": cycle  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("C", Style::default().fg(Color::Yellow)),
+                Span::styled(": current  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("m", Style::default().fg(Color::Yellow)),
                 Span::styled(if app.filter_my_issues { ": all  " } else { ": mine  " }, Style::default().fg(Color::DarkGray)),
             ];
@@ -475,7 +477,7 @@ fn render_team_picker<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
 }
 
 fn render_cycle_picker<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
-    let area = centered_rect(40, 50, frame.area());
+    let area = centered_rect(60, 50, frame.area());
     frame.render_widget(Clear, area);
 
     let block = Block::default()
@@ -496,23 +498,35 @@ fn render_cycle_picker<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
 
     render_filter_input(frame, &app.cycle_filter, chunks[0]);
 
+    // Determine which cycle is current
+    let current_cycle_id = crate::app::find_current_cycle(&app.cycles).map(|c| c.id.clone());
+
     let items: Vec<ListItem> = app
         .filtered_cycles
         .iter()
         .enumerate()
         .map(|(i, filtered)| {
             let cycle = &filtered.item;
-            let style = if i == app.selected_cycle_index {
+            let is_selected = i == app.selected_cycle_index;
+            let is_current = current_cycle_id.as_ref().map(|id| id == &cycle.id).unwrap_or(false);
+            
+            let style = if is_selected {
                 Style::default().fg(Color::Yellow).bold()
+            } else if is_current {
+                Style::default().fg(Color::Green)
             } else {
                 Style::default()
             };
-            let prefix = if i == app.selected_cycle_index {
+            
+            let prefix = if is_selected {
                 "> "
             } else {
                 "  "
             };
-            ListItem::new(format!("{}{}", prefix, cycle.display_name())).style(style)
+            
+            let suffix = if is_current { " [current]" } else { "" };
+            
+            ListItem::new(format!("{}{}{}", prefix, cycle.display_with_dates(), suffix)).style(style)
         })
         .collect();
 

@@ -554,6 +554,15 @@ impl<C: LinearApi> App<C> {
             self.filter_my_issues = !self.filter_my_issues;
         }
     }
+
+    pub async fn jump_to_current_cycle(&mut self) -> Result<()> {
+        if let Some(current) = find_current_cycle(&self.cycles) {
+            self.current_cycle = Some(current.clone());
+            self.cycle_filter.clear();
+            self.load_issues().await?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
