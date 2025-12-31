@@ -38,7 +38,7 @@ struct DefaultsConfigFile {
 
 #[derive(Debug, Deserialize)]
 struct ConfigFile {
-    api_key: String,
+    api_key: Option<String>,
     #[serde(default)]
     defaults: Option<DefaultsConfigFile>,
 }
@@ -80,11 +80,11 @@ impl Config {
             .and_then(|contents| toml::from_str::<ConfigFile>(&contents).ok());
 
         // Determine API key: env var takes priority, then config file
-        let api_key = match (&env_api_key, &config_file) {
-            (Some(key), _) => key.clone(),
-            (None, Some(cf)) => cf.api_key.clone(),
-            (None, None) => {
-                anyhow::bail!(
+        let config_api_key = config_file.as_ref().and_then(|cf| cf.api_key.clone());
+        let api_key = env_api_key
+            .or(config_api_key)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
                     "No API key found.\n\n\
                     To authenticate, either:\n\
                     1. Set the {} environment variable, or\n\
@@ -92,9 +92,8 @@ impl Config {
                     api_key = \"lin_api_...\"",
                     ENV_VAR_NAME,
                     config_path
-                );
-            }
-        };
+                )
+            })?;
 
         // Parse defaults from config file (if it exists)
         let defaults_config = config_file
@@ -143,6 +142,8 @@ mod tests {
         let config_file: ConfigFile = toml::from_str(&contents)
             .with_context(|| format!("Failed to parse config file at {:?}", config_path))?;
 
+        let api_key = config_file.api_key.context("No api_key in config file")?;
+
         let defaults = config_file.defaults.unwrap_or_default();
         let defaults_config = DefaultsConfig {
             team: defaults.team,
@@ -151,7 +152,7 @@ mod tests {
         };
 
         Ok(Config {
-            api_key: config_file.api_key,
+            api_key,
             defaults: defaults_config,
         })
     }
@@ -367,5 +368,38 @@ assignee = "Joey McKenzie"
             config.defaults.assignee,
             AssigneeDefault::Name("Joey McKenzie".to_string())
         );
+    }
+
+    #[test]
+    fn defaults_only_config_parses() {
+        // Simulates: api_key from env var, config file only has defaults section
+        let config_content = r#"
+[defaults]
+team = "Fundraising"
+cycle = "current"
+assignee = "me"
+"#;
+
+        let config_file: ConfigFile = toml::from_str(config_content).unwrap();
+
+        // api_key should be None (will come from env var)
+        assert!(config_file.api_key.is_none());
+
+        // defaults should be parsed
+        let defaults = config_file.defaults.unwrap();
+        assert_eq!(defaults.team, Some("Fundraising".to_string()));
+        assert_eq!(defaults.cycle, Some("current".to_string()));
+        assert_eq!(defaults.assignee, Some("me".to_string()));
+
+        // Parse into final config defaults
+        let defaults_config = DefaultsConfig {
+            team: defaults.team,
+            cycle: parse_cycle_default(defaults.cycle.as_deref()),
+            assignee: parse_assignee_default(defaults.assignee.as_deref()),
+        };
+
+        assert_eq!(defaults_config.team, Some("Fundraising".to_string()));
+        assert_eq!(defaults_config.cycle, CycleDefault::Current);
+        assert_eq!(defaults_config.assignee, AssigneeDefault::Me);
     }
 }

@@ -1307,4 +1307,56 @@ mod tests {
         app.toggle_my_issues();
         assert!(!app.filter_my_issues);
     }
+
+    #[tokio::test]
+    async fn init_applies_team_default_by_name() {
+        let mut config = mock_config();
+        config.defaults.team = Some("Design".to_string());
+
+        let mut app = App::new(MockClient::new(), config);
+        app.init().await.unwrap();
+
+        // Should select Design team (2nd in list), not Engineering (1st)
+        assert!(app.current_team.is_some());
+        assert_eq!(app.current_team.as_ref().unwrap().name, "Design");
+    }
+
+    #[tokio::test]
+    async fn init_applies_team_default_by_key() {
+        let mut config = mock_config();
+        config.defaults.team = Some("DES".to_string()); // Team key
+
+        let mut app = App::new(MockClient::new(), config);
+        app.init().await.unwrap();
+
+        // Should match by key
+        assert!(app.current_team.is_some());
+        assert_eq!(app.current_team.as_ref().unwrap().name, "Design");
+    }
+
+    #[tokio::test]
+    async fn init_applies_team_default_case_insensitive() {
+        let mut config = mock_config();
+        config.defaults.team = Some("design".to_string()); // lowercase
+
+        let mut app = App::new(MockClient::new(), config);
+        app.init().await.unwrap();
+
+        // Should match case-insensitively
+        assert!(app.current_team.is_some());
+        assert_eq!(app.current_team.as_ref().unwrap().name, "Design");
+    }
+
+    #[tokio::test]
+    async fn init_falls_back_to_first_team_when_default_not_found() {
+        let mut config = mock_config();
+        config.defaults.team = Some("NonexistentTeam".to_string());
+
+        let mut app = App::new(MockClient::new(), config);
+        app.init().await.unwrap();
+
+        // Should fall back to first team
+        assert!(app.current_team.is_some());
+        assert_eq!(app.current_team.as_ref().unwrap().name, "Engineering");
+    }
 }
