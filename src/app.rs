@@ -1,4 +1,5 @@
 use crate::api::{Cycle, Issue, LinearApi, Team, User, WorkflowState};
+use crate::config::{AssigneeDefault, Config};
 use crate::fuzzy::{filter_items, FilteredItem};
 use anyhow::Result;
 use chrono::NaiveDate;
@@ -16,6 +17,7 @@ pub enum Mode {
 
 pub struct App<C: LinearApi> {
     pub client: C,
+    pub config: Config,
 
     pub teams: Vec<Team>,
     pub cycles: Vec<Cycle>,
@@ -71,9 +73,12 @@ pub fn find_current_cycle(cycles: &[Cycle]) -> Option<&Cycle> {
 }
 
 impl<C: LinearApi> App<C> {
-    pub fn new(client: C) -> Self {
+    pub fn new(client: C, config: Config) -> Self {
+        let filter_my_issues = matches!(config.defaults.assignee, AssigneeDefault::Me);
+
         Self {
             client,
+            config,
             teams: Vec::new(),
             cycles: Vec::new(),
             issues: Vec::new(),
@@ -94,7 +99,7 @@ impl<C: LinearApi> App<C> {
             current_team: None,
             current_cycle: None,
             viewer: None,
-            filter_my_issues: false,
+            filter_my_issues,
             loading: false,
             error: None,
             detail_scroll_offset: 0,

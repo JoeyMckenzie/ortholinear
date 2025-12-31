@@ -27,8 +27,8 @@ async fn main() -> Result<()> {
         }
     };
 
-    let client = LinearClient::new(config.api_key);
-    let mut app = App::new(client);
+    let client = LinearClient::new(config.api_key.clone());
+    let mut app = App::new(client, config);
 
     enable_raw_mode()?;
     execute!(stdout(), EnterAlternateScreen)?;
