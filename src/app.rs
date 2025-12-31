@@ -548,6 +548,12 @@ impl<C: LinearApi> App<C> {
         self.update_filtered_issues();
         self.selected_issue_index = 0;
     }
+
+    pub fn toggle_my_issues(&mut self) {
+        if self.viewer.is_some() {
+            self.filter_my_issues = !self.filter_my_issues;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1246,5 +1252,19 @@ mod tests {
 
         assert!(app.current_cycle.is_some());
         assert_eq!(app.current_cycle.as_ref().unwrap().id, "current-cycle");
+    }
+
+    #[tokio::test]
+    async fn toggle_my_issues_flips_filter() {
+        let mut app = create_test_app();
+        app.init().await.unwrap(); // This fetches the viewer
+
+        assert!(!app.filter_my_issues);
+
+        app.toggle_my_issues();
+        assert!(app.filter_my_issues);
+
+        app.toggle_my_issues();
+        assert!(!app.filter_my_issues);
     }
 }
