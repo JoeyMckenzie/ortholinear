@@ -1,6 +1,7 @@
 use crate::api::{Cycle, Issue, LinearApi, Team, User, WorkflowState};
 use crate::fuzzy::{filter_items, FilteredItem};
 use anyhow::Result;
+use chrono::NaiveDate;
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mode {
@@ -51,6 +52,22 @@ pub struct App<C: LinearApi> {
     pub detail_scroll_offset: u16,
     pub detail_content_height: u16,
     pub detail_viewport_height: u16,
+}
+
+pub fn find_current_cycle(cycles: &[Cycle]) -> Option<&Cycle> {
+    let today = chrono::Utc::now().date_naive();
+
+    cycles.iter().find(|cycle| {
+        let starts = cycle.starts_at.as_ref()
+            .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+        let ends = cycle.ends_at.as_ref()
+            .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+
+        match (starts, ends) {
+            (Some(start), Some(end)) => today >= start && today <= end,
+            _ => false,
+        }
+    })
 }
 
 impl<C: LinearApi> App<C> {
@@ -1090,5 +1107,50 @@ mod tests {
         app.next_issue();
 
         assert_eq!(app.detail_scroll_offset, 0);
+    }
+
+    #[test]
+    fn find_current_cycle_returns_matching() {
+        let yesterday = (chrono::Utc::now() - chrono::Duration::days(7)).format("%Y-%m-%d").to_string();
+        let next_week = (chrono::Utc::now() + chrono::Duration::days(7)).format("%Y-%m-%d").to_string();
+
+        let cycles = vec![
+            Cycle {
+                id: "cycle-old".to_string(),
+                name: Some("Old Cycle".to_string()),
+                number: 1,
+                starts_at: Some("2020-01-01".to_string()),
+                ends_at: Some("2020-01-14".to_string()),
+            },
+            Cycle {
+                id: "cycle-current".to_string(),
+                name: Some("Current Cycle".to_string()),
+                number: 2,
+                starts_at: Some(yesterday),
+                ends_at: Some(next_week),
+            },
+        ];
+
+        let current = find_current_cycle(&cycles);
+
+        assert!(current.is_some());
+        assert_eq!(current.unwrap().id, "cycle-current");
+    }
+
+    #[test]
+    fn find_current_cycle_returns_none_when_no_match() {
+        let cycles = vec![
+            Cycle {
+                id: "cycle-old".to_string(),
+                name: Some("Old Cycle".to_string()),
+                number: 1,
+                starts_at: Some("2020-01-01".to_string()),
+                ends_at: Some("2020-01-14".to_string()),
+            },
+        ];
+
+        let current = find_current_cycle(&cycles);
+
+        assert!(current.is_none());
     }
 }
