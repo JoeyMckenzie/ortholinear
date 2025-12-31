@@ -298,6 +298,8 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
                 Span::styled(": team  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("c", Style::default().fg(Color::Yellow)),
                 Span::styled(": cycle  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("m", Style::default().fg(Color::Yellow)),
+                Span::styled(if app.filter_my_issues { ": all  " } else { ": mine  " }, Style::default().fg(Color::DarkGray)),
             ];
             if !app.issue_filter.is_empty() {
                 spans.push(Span::styled("x", Style::default().fg(Color::Yellow)));
