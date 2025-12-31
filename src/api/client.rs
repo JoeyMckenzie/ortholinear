@@ -103,6 +103,7 @@ impl LinearApi for LinearClient {
         &self,
         team_id: Option<&str>,
         cycle_id: Option<&str>,
+        assignee_id: Option<&str>,
     ) -> Result<Vec<Issue>> {
         let query = r#"
             query Issues($filter: IssueFilter) {
@@ -139,6 +140,9 @@ impl LinearApi for LinearClient {
         }
         if let Some(cid) = cycle_id {
             filter["cycle"] = json!({ "id": { "eq": cid } });
+        }
+        if let Some(aid) = assignee_id {
+            filter["assignee"] = json!({ "id": { "eq": aid } });
         }
 
         let variables = json!({ "filter": filter });
