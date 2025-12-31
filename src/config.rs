@@ -29,21 +29,53 @@ pub struct DefaultsConfig {
     pub assignee: AssigneeDefault,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct DefaultsConfigFile {
+    team: Option<String>,
+    cycle: Option<String>,
+    assignee: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct ConfigFile {
     api_key: String,
+    #[serde(default)]
+    defaults: Option<DefaultsConfigFile>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub api_key: String,
+    pub defaults: DefaultsConfig,
+}
+
+fn parse_cycle_default(value: Option<&str>) -> CycleDefault {
+    match value {
+        None | Some("none") => CycleDefault::None,
+        Some("current") => CycleDefault::Current,
+        Some(s) => s
+            .parse::<i32>()
+            .map(CycleDefault::Number)
+            .unwrap_or(CycleDefault::None),
+    }
+}
+
+fn parse_assignee_default(value: Option<&str>) -> AssigneeDefault {
+    match value {
+        None | Some("none") => AssigneeDefault::None,
+        Some("me") => AssigneeDefault::Me,
+        Some(s) => AssigneeDefault::Name(s.to_string()),
+    }
 }
 
 impl Config {
     pub fn load() -> Result<Self> {
         if let Ok(api_key) = env::var(ENV_VAR_NAME) {
             if !api_key.is_empty() {
-                return Ok(Self { api_key });
+                return Ok(Self {
+                    api_key,
+                    defaults: DefaultsConfig::default(),
+                });
             }
         }
 
@@ -62,8 +94,16 @@ impl Config {
         let config_file: ConfigFile = toml::from_str(&contents)
             .with_context(|| format!("Failed to parse config file at {:?}", config_path))?;
 
+        let defaults = config_file.defaults.unwrap_or_default();
+        let defaults_config = DefaultsConfig {
+            team: defaults.team,
+            cycle: parse_cycle_default(defaults.cycle.as_deref()),
+            assignee: parse_assignee_default(defaults.assignee.as_deref()),
+        };
+
         Ok(Self {
             api_key: config_file.api_key,
+            defaults: defaults_config,
         })
     }
 
@@ -98,8 +138,16 @@ mod tests {
         let config_file: ConfigFile = toml::from_str(&contents)
             .with_context(|| format!("Failed to parse config file at {:?}", config_path))?;
 
+        let defaults = config_file.defaults.unwrap_or_default();
+        let defaults_config = DefaultsConfig {
+            team: defaults.team,
+            cycle: parse_cycle_default(defaults.cycle.as_deref()),
+            assignee: parse_assignee_default(defaults.assignee.as_deref()),
+        };
+
         Ok(Config {
             api_key: config_file.api_key,
+            defaults: defaults_config,
         })
     }
 
@@ -112,6 +160,7 @@ mod tests {
         let result = if !test_key.is_empty() {
             Some(Config {
                 api_key: test_key.to_string(),
+                defaults: DefaultsConfig::default(),
             })
         } else {
             None
@@ -214,6 +263,7 @@ mod tests {
     fn config_is_cloneable() {
         let config = Config {
             api_key: "test_key".to_string(),
+            defaults: DefaultsConfig::default(),
         };
 
         let cloned = config.clone();
@@ -225,6 +275,7 @@ mod tests {
     fn config_is_debuggable() {
         let config = Config {
             api_key: "test_key".to_string(),
+            defaults: DefaultsConfig::default(),
         };
 
         let debug_str = format!("{:?}", config);
