@@ -89,6 +89,36 @@ fn render_main<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
     render_issue_detail(frame, app, chunks[1]);
 }
 
+fn build_issues_title<C: LinearApi>(app: &App<C>) -> String {
+    let mut parts = vec!["Issues".to_string()];
+
+    if let Some(team) = &app.current_team {
+        parts.push(team.name.clone());
+    }
+
+    if let Some(cycle) = &app.current_cycle {
+        parts.push(cycle.display_name());
+    }
+
+    if app.filter_my_issues {
+        parts.push("My Issues".to_string());
+    }
+
+    let filtered_count = app.filtered_issues.len();
+    let total_count = app.issues.len();
+    let count_str = if filtered_count == total_count {
+        format!("{}", total_count)
+    } else {
+        format!("{}/{}", filtered_count, total_count)
+    };
+
+    if parts.len() > 1 {
+        format!(" {} ({}) [{}] ", parts[0], parts[1..].join(" · "), count_str)
+    } else {
+        format!(" {} ({}) ", parts[0], count_str)
+    }
+}
+
 fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
     let items: Vec<ListItem> = app
         .filtered_issues
@@ -117,13 +147,7 @@ fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Re
         })
         .collect();
 
-    let filtered_count = app.filtered_issues.len();
-    let total_count = app.issues.len();
-    let title = if filtered_count == total_count {
-        format!(" Issues ({}) ", total_count)
-    } else {
-        format!(" Issues ({}/{}) ", filtered_count, total_count)
-    };
+    let title = build_issues_title(app);
 
     let list = List::new(items).block(
         Block::default()
