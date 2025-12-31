@@ -1,4 +1,4 @@
-use crate::api::Issue;
+use crate::api::{Issue, LinearApi};
 use crate::app::{App, Mode};
 use crate::markdown::render_markdown;
 use ratatui::{
@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
 };
 
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -37,7 +37,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 }
 
-fn render_header(frame: &mut Frame, app: &App, area: Rect) {
+fn render_header<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
     let team_name = app
         .current_team
         .as_ref()
@@ -76,7 +76,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(header, area);
 }
 
-fn render_main(frame: &mut Frame, app: &App, area: Rect) {
+fn render_main<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -89,7 +89,7 @@ fn render_main(frame: &mut Frame, app: &App, area: Rect) {
     render_issue_detail(frame, app, chunks[1]);
 }
 
-fn render_issue_list(frame: &mut Frame, app: &App, area: Rect) {
+fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
     let items: Vec<ListItem> = app
         .filtered_issues
         .iter()
@@ -135,7 +135,7 @@ fn render_issue_list(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(list, area);
 }
 
-fn render_issue_detail(frame: &mut Frame, app: &App, area: Rect) {
+fn render_issue_detail<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title(" Details ")
@@ -236,7 +236,7 @@ fn build_detail_content(issue: &Issue) -> Vec<Line<'static>> {
     lines
 }
 
-fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
+fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
     let help_text = match app.mode {
         Mode::Normal => {
             let mut spans = vec![
@@ -322,7 +322,7 @@ fn render_filter_input(frame: &mut Frame, filter: &str, area: Rect) {
     frame.render_widget(input, area);
 }
 
-fn render_issue_filter(frame: &mut Frame, app: &App) {
+fn render_issue_filter<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     let area = centered_rect(50, 60, frame.area());
     frame.render_widget(Clear, area);
 
@@ -368,7 +368,7 @@ fn render_issue_filter(frame: &mut Frame, app: &App) {
     frame.render_widget(list, inner_chunks[1]);
 }
 
-fn render_team_picker(frame: &mut Frame, app: &App) {
+fn render_team_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 
@@ -414,7 +414,7 @@ fn render_team_picker(frame: &mut Frame, app: &App) {
     frame.render_widget(list, chunks[1]);
 }
 
-fn render_cycle_picker(frame: &mut Frame, app: &App) {
+fn render_cycle_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 
@@ -460,7 +460,7 @@ fn render_cycle_picker(frame: &mut Frame, app: &App) {
     frame.render_widget(list, chunks[1]);
 }
 
-fn render_status_picker(frame: &mut Frame, app: &App) {
+fn render_status_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 

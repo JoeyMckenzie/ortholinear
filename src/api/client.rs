@@ -1,4 +1,5 @@
 use crate::api::types::*;
+use crate::api::LinearApi;
 use anyhow::{bail, Context, Result};
 use reqwest::Client;
 use serde_json::json;
@@ -56,8 +57,10 @@ impl LinearClient {
 
         result.data.context("No data in response")
     }
+}
 
-    pub async fn fetch_teams(&self) -> Result<Vec<Team>> {
+impl LinearApi for LinearClient {
+    async fn fetch_teams(&self) -> Result<Vec<Team>> {
         let query = r#"
             query Teams {
                 teams {
@@ -74,7 +77,7 @@ impl LinearClient {
         Ok(response.teams.nodes)
     }
 
-    pub async fn fetch_cycles(&self, team_id: &str) -> Result<Vec<Cycle>> {
+    async fn fetch_cycles(&self, team_id: &str) -> Result<Vec<Cycle>> {
         let query = r#"
             query Cycles($teamId: String!) {
                 team(id: $teamId) {
@@ -96,7 +99,7 @@ impl LinearClient {
         Ok(response.team.cycles.nodes)
     }
 
-    pub async fn fetch_issues(
+    async fn fetch_issues(
         &self,
         team_id: Option<&str>,
         cycle_id: Option<&str>,
@@ -142,7 +145,7 @@ impl LinearClient {
         Ok(response.issues.nodes)
     }
 
-    pub async fn fetch_workflow_states(&self, team_id: &str) -> Result<Vec<WorkflowState>> {
+    async fn fetch_workflow_states(&self, team_id: &str) -> Result<Vec<WorkflowState>> {
         let query = r#"
             query WorkflowStates($teamId: String!) {
                 workflowStates(filter: { team: { id: { eq: $teamId } } }) {
@@ -161,7 +164,7 @@ impl LinearClient {
         Ok(response.workflow_states.nodes)
     }
 
-    pub async fn update_issue_status(&self, issue_id: &str, state_id: &str) -> Result<Issue> {
+    async fn update_issue_status(&self, issue_id: &str, state_id: &str) -> Result<Issue> {
         let query = r#"
             mutation UpdateIssueState($issueId: String!, $stateId: String!) {
                 issueUpdate(id: $issueId, input: { stateId: $stateId }) {

@@ -1,8 +1,8 @@
-use crate::api::{Cycle, Issue, LinearClient, Team, WorkflowState};
+use crate::api::{Cycle, Issue, LinearApi, Team, WorkflowState};
 use crate::fuzzy::{filter_items, FilteredItem};
 use anyhow::Result;
 
-#[derive(Default, PartialEq, Eq, Clone, Copy)]
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mode {
     #[default]
     Normal,
@@ -12,8 +12,8 @@ pub enum Mode {
     StatusSelect,
 }
 
-pub struct App {
-    pub client: LinearClient,
+pub struct App<C: LinearApi> {
+    pub client: C,
 
     pub teams: Vec<Team>,
     pub cycles: Vec<Cycle>,
@@ -45,8 +45,8 @@ pub struct App {
     pub error: Option<String>,
 }
 
-impl App {
-    pub fn new(client: LinearClient) -> Self {
+impl<C: LinearApi> App<C> {
+    pub fn new(client: C) -> Self {
         Self {
             client,
             teams: Vec::new(),
@@ -443,5 +443,455 @@ impl App {
         self.issue_filter.clear();
         self.update_filtered_issues();
         self.selected_issue_index = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::{LinearApi, WorkflowState};
+
+    struct MockClient {
+        teams: Vec<Team>,
+        cycles: Vec<Cycle>,
+        issues: Vec<Issue>,
+        workflow_states: Vec<WorkflowState>,
+    }
+
+    impl MockClient {
+        fn new() -> Self {
+            Self {
+                teams: vec![
+                    Team {
+                        id: "team-1".to_string(),
+                        name: "Engineering".to_string(),
+                        key: "ENG".to_string(),
+                    },
+                    Team {
+                        id: "team-2".to_string(),
+                        name: "Design".to_string(),
+                        key: "DES".to_string(),
+                    },
+                ],
+                cycles: vec![
+                    Cycle {
+                        id: "cycle-1".to_string(),
+                        name: Some("Sprint 1".to_string()),
+                        number: 1,
+                        starts_at: None,
+                        ends_at: None,
+                    },
+                    Cycle {
+                        id: "cycle-2".to_string(),
+                        name: Some("Sprint 2".to_string()),
+                        number: 2,
+                        starts_at: None,
+                        ends_at: None,
+                    },
+                ],
+                issues: vec![
+                    Issue {
+                        id: "issue-1".to_string(),
+                        identifier: "ENG-1".to_string(),
+                        title: "Fix login bug".to_string(),
+                        description: Some("Users can't log in".to_string()),
+                        state: WorkflowState {
+                            id: "state-1".to_string(),
+                            name: "Todo".to_string(),
+                            color: "#ccc".to_string(),
+                            state_type: "unstarted".to_string(),
+                        },
+                        assignee: None,
+                        priority: 1,
+                        project: None,
+                    },
+                    Issue {
+                        id: "issue-2".to_string(),
+                        identifier: "ENG-2".to_string(),
+                        title: "Add feature flag".to_string(),
+                        description: None,
+                        state: WorkflowState {
+                            id: "state-2".to_string(),
+                            name: "In Progress".to_string(),
+                            color: "#00f".to_string(),
+                            state_type: "started".to_string(),
+                        },
+                        assignee: None,
+                        priority: 2,
+                        project: None,
+                    },
+                    Issue {
+                        id: "issue-3".to_string(),
+                        identifier: "ENG-3".to_string(),
+                        title: "Fix performance issue".to_string(),
+                        description: None,
+                        state: WorkflowState {
+                            id: "state-1".to_string(),
+                            name: "Todo".to_string(),
+                            color: "#ccc".to_string(),
+                            state_type: "unstarted".to_string(),
+                        },
+                        assignee: None,
+                        priority: 3,
+                        project: None,
+                    },
+                ],
+                workflow_states: vec![
+                    WorkflowState {
+                        id: "state-1".to_string(),
+                        name: "Todo".to_string(),
+                        color: "#ccc".to_string(),
+                        state_type: "unstarted".to_string(),
+                    },
+                    WorkflowState {
+                        id: "state-2".to_string(),
+                        name: "In Progress".to_string(),
+                        color: "#00f".to_string(),
+                        state_type: "started".to_string(),
+                    },
+                    WorkflowState {
+                        id: "state-3".to_string(),
+                        name: "Done".to_string(),
+                        color: "#0f0".to_string(),
+                        state_type: "completed".to_string(),
+                    },
+                ],
+            }
+        }
+    }
+
+    impl LinearApi for MockClient {
+        async fn fetch_teams(&self) -> anyhow::Result<Vec<Team>> {
+            Ok(self.teams.clone())
+        }
+
+        async fn fetch_cycles(&self, _team_id: &str) -> anyhow::Result<Vec<Cycle>> {
+            Ok(self.cycles.clone())
+        }
+
+        async fn fetch_issues(
+            &self,
+            _team_id: Option<&str>,
+            _cycle_id: Option<&str>,
+        ) -> anyhow::Result<Vec<Issue>> {
+            Ok(self.issues.clone())
+        }
+
+        async fn fetch_workflow_states(
+            &self,
+            _team_id: &str,
+        ) -> anyhow::Result<Vec<WorkflowState>> {
+            Ok(self.workflow_states.clone())
+        }
+
+        async fn update_issue_status(
+            &self,
+            _issue_id: &str,
+            state_id: &str,
+        ) -> anyhow::Result<Issue> {
+            let mut issue = self.issues[0].clone();
+            issue.state = self
+                .workflow_states
+                .iter()
+                .find(|s| s.id == state_id)
+                .cloned()
+                .unwrap_or(issue.state);
+            Ok(issue)
+        }
+    }
+
+    fn create_test_app() -> App<MockClient> {
+        App::new(MockClient::new())
+    }
+
+    #[tokio::test]
+    async fn init_loads_teams() {
+        let mut app = create_test_app();
+        app.init().await.unwrap();
+
+        assert_eq!(app.teams.len(), 2);
+        assert_eq!(app.teams[0].name, "Engineering");
+        assert_eq!(app.teams[1].name, "Design");
+    }
+
+    #[tokio::test]
+    async fn init_sets_current_team() {
+        let mut app = create_test_app();
+        app.init().await.unwrap();
+
+        assert!(app.current_team.is_some());
+        assert_eq!(app.current_team.as_ref().unwrap().name, "Engineering");
+    }
+
+    #[tokio::test]
+    async fn init_loads_issues() {
+        let mut app = create_test_app();
+        app.init().await.unwrap();
+
+        assert_eq!(app.issues.len(), 3);
+        assert_eq!(app.filtered_issues.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn init_loads_cycles() {
+        let mut app = create_test_app();
+        app.init().await.unwrap();
+
+        assert_eq!(app.cycles.len(), 2);
+        assert!(app.current_cycle.is_some());
+    }
+
+    #[tokio::test]
+    async fn init_loads_workflow_states() {
+        let mut app = create_test_app();
+        app.init().await.unwrap();
+
+        assert_eq!(app.workflow_states.len(), 3);
+    }
+
+    #[test]
+    fn next_issue_increments_index() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.selected_issue_index = 0;
+
+        app.next_issue();
+        assert_eq!(app.selected_issue_index, 1);
+
+        app.next_issue();
+        assert_eq!(app.selected_issue_index, 2);
+    }
+
+    #[test]
+    fn next_issue_stops_at_last() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.selected_issue_index = 2;
+
+        app.next_issue();
+        assert_eq!(app.selected_issue_index, 2);
+    }
+
+    #[test]
+    fn previous_issue_decrements_index() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.selected_issue_index = 2;
+
+        app.previous_issue();
+        assert_eq!(app.selected_issue_index, 1);
+
+        app.previous_issue();
+        assert_eq!(app.selected_issue_index, 0);
+    }
+
+    #[test]
+    fn previous_issue_stops_at_first() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.selected_issue_index = 0;
+
+        app.previous_issue();
+        assert_eq!(app.selected_issue_index, 0);
+    }
+
+    #[test]
+    fn first_issue_jumps_to_beginning() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.selected_issue_index = 2;
+
+        app.first_issue();
+        assert_eq!(app.selected_issue_index, 0);
+    }
+
+    #[test]
+    fn last_issue_jumps_to_end() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.selected_issue_index = 0;
+
+        app.last_issue();
+        assert_eq!(app.selected_issue_index, 2);
+    }
+
+    #[test]
+    fn enter_issue_filter_changes_mode() {
+        let mut app = create_test_app();
+        app.enter_issue_filter();
+
+        assert_eq!(app.mode, Mode::IssueFilter);
+        assert!(app.issue_filter.is_empty());
+    }
+
+    #[test]
+    fn enter_team_select_changes_mode() {
+        let mut app = create_test_app();
+        app.enter_team_select();
+
+        assert_eq!(app.mode, Mode::TeamSelect);
+        assert!(app.team_filter.is_empty());
+    }
+
+    #[test]
+    fn enter_cycle_select_changes_mode() {
+        let mut app = create_test_app();
+        app.enter_cycle_select();
+
+        assert_eq!(app.mode, Mode::CycleSelect);
+        assert!(app.cycle_filter.is_empty());
+    }
+
+    #[test]
+    fn filter_input_appends_character() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.mode = Mode::IssueFilter;
+
+        app.filter_input('a');
+        assert_eq!(app.issue_filter, "a");
+
+        app.filter_input('b');
+        assert_eq!(app.issue_filter, "ab");
+    }
+
+    #[test]
+    fn filter_backspace_removes_character() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.mode = Mode::IssueFilter;
+        app.issue_filter = "abc".to_string();
+
+        app.filter_backspace();
+        assert_eq!(app.issue_filter, "ab");
+
+        app.filter_backspace();
+        assert_eq!(app.issue_filter, "a");
+    }
+
+    #[test]
+    fn filter_backspace_handles_empty() {
+        let mut app = create_test_app();
+        app.mode = Mode::IssueFilter;
+        app.issue_filter = String::new();
+
+        app.filter_backspace();
+        assert!(app.issue_filter.is_empty());
+    }
+
+    #[test]
+    fn cancel_picker_returns_to_normal_mode() {
+        let mut app = create_test_app();
+        app.mode = Mode::IssueFilter;
+        app.issue_filter = "test".to_string();
+
+        app.cancel_picker();
+
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(app.issue_filter.is_empty());
+    }
+
+    #[test]
+    fn confirm_issue_filter_returns_to_normal_mode() {
+        let mut app = create_test_app();
+        app.mode = Mode::IssueFilter;
+        app.issue_filter = "test".to_string();
+
+        app.confirm_issue_filter();
+
+        assert_eq!(app.mode, Mode::Normal);
+        assert_eq!(app.issue_filter, "test"); // Filter should be preserved
+    }
+
+    #[test]
+    fn clear_error_removes_error() {
+        let mut app = create_test_app();
+        app.error = Some("Test error".to_string());
+
+        app.clear_error();
+
+        assert!(app.error.is_none());
+    }
+
+    #[test]
+    fn clear_issue_filter_resets_filter() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.issue_filter = "test".to_string();
+        app.selected_issue_index = 2;
+
+        app.clear_issue_filter();
+
+        assert!(app.issue_filter.is_empty());
+        assert_eq!(app.selected_issue_index, 0);
+    }
+
+    #[test]
+    fn filtering_issues_updates_filtered_list() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.mode = Mode::IssueFilter;
+
+        app.filter_input('f');
+        app.filter_input('i');
+        app.filter_input('x');
+
+        // Should match "Fix login bug" and "Fix performance issue"
+        assert_eq!(app.filtered_issues.len(), 2);
+    }
+
+    #[test]
+    fn selected_issue_returns_correct_issue() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.selected_issue_index = 1;
+
+        let issue = app.selected_issue();
+        assert!(issue.is_some());
+        assert_eq!(issue.unwrap().identifier, "ENG-2");
+    }
+
+    #[test]
+    fn selected_issue_returns_none_when_empty() {
+        let mut app = create_test_app();
+        app.filtered_issues = Vec::new();
+
+        assert!(app.selected_issue().is_none());
+    }
+
+    #[tokio::test]
+    async fn select_team_from_filter_changes_current_team() {
+        let mut app = create_test_app();
+        app.init().await.unwrap();
+        app.enter_team_select();
+        app.selected_team_index = 1; // Select "Design" team
+
+        app.select_team_from_filter().await.unwrap();
+
+        assert_eq!(app.current_team.as_ref().unwrap().name, "Design");
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[tokio::test]
+    async fn select_cycle_from_filter_changes_current_cycle() {
+        let mut app = create_test_app();
+        app.init().await.unwrap();
+        app.enter_cycle_select();
+        app.selected_cycle_index = 1; // Select second cycle
+
+        app.select_cycle_from_filter().await.unwrap();
+
+        assert_eq!(
+            app.current_cycle.as_ref().unwrap().name,
+            Some("Sprint 2".to_string())
+        );
+        assert_eq!(app.mode, Mode::Normal);
     }
 }

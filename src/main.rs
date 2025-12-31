@@ -6,7 +6,7 @@ mod markdown;
 mod ui;
 
 use anyhow::Result;
-use api::LinearClient;
+use api::{LinearApi, LinearClient};
 use app::{App, Mode};
 use config::Config;
 use crossterm::{
@@ -27,11 +27,14 @@ async fn main() -> Result<()> {
         }
     };
 
+    let client = LinearClient::new(config.api_key);
+    let mut app = App::new(client);
+
     enable_raw_mode()?;
     execute!(stdout(), EnterAlternateScreen)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
-    let result = run(&mut terminal, config).await;
+    let result = run(&mut terminal, &mut app).await;
 
     disable_raw_mode()?;
     execute!(stdout(), LeaveAlternateScreen)?;
@@ -39,9 +42,7 @@ async fn main() -> Result<()> {
     result
 }
 
-async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, config: Config) -> Result<()> {
-    let client = LinearClient::new(config.api_key);
-    let mut app = App::new(client);
+async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App<C>) -> Result<()> {
 
     app.init().await?;
 
