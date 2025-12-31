@@ -6,6 +6,7 @@ use anyhow::Result;
 pub enum Mode {
     #[default]
     Normal,
+    DetailView,
     IssueFilter,
     TeamSelect,
     CycleSelect,
@@ -43,6 +44,10 @@ pub struct App<C: LinearApi> {
 
     pub loading: bool,
     pub error: Option<String>,
+
+    pub detail_scroll_offset: u16,
+    pub detail_content_height: u16,
+    pub detail_viewport_height: u16,
 }
 
 impl<C: LinearApi> App<C> {
@@ -70,6 +75,9 @@ impl<C: LinearApi> App<C> {
             current_cycle: None,
             loading: false,
             error: None,
+            detail_scroll_offset: 0,
+            detail_content_height: 0,
+            detail_viewport_height: 0,
         }
     }
 
@@ -199,7 +207,7 @@ impl<C: LinearApi> App<C> {
                 self.update_filtered_states();
                 self.selected_status_index = 0;
             }
-            Mode::Normal => {}
+            Mode::Normal | Mode::DetailView => {}
         }
     }
 
@@ -225,7 +233,7 @@ impl<C: LinearApi> App<C> {
                 self.update_filtered_states();
                 self.selected_status_index = 0;
             }
-            Mode::Normal => {}
+            Mode::Normal | Mode::DetailView => {}
         }
     }
 
@@ -235,7 +243,7 @@ impl<C: LinearApi> App<C> {
             Mode::TeamSelect => &self.team_filter,
             Mode::CycleSelect => &self.cycle_filter,
             Mode::StatusSelect => &self.status_filter,
-            Mode::Normal => "",
+            Mode::Normal | Mode::DetailView => "",
         }
     }
 
@@ -294,22 +302,36 @@ impl<C: LinearApi> App<C> {
 
     pub fn next_issue(&mut self) {
         if !self.filtered_issues.is_empty() {
-            self.selected_issue_index =
-                (self.selected_issue_index + 1).min(self.filtered_issues.len() - 1);
+            let new_index = (self.selected_issue_index + 1).min(self.filtered_issues.len() - 1);
+            if new_index != self.selected_issue_index {
+                self.selected_issue_index = new_index;
+                self.detail_scroll_offset = 0;
+            }
         }
     }
 
     pub fn previous_issue(&mut self) {
-        self.selected_issue_index = self.selected_issue_index.saturating_sub(1);
+        let new_index = self.selected_issue_index.saturating_sub(1);
+        if new_index != self.selected_issue_index {
+            self.selected_issue_index = new_index;
+            self.detail_scroll_offset = 0;
+        }
     }
 
     pub fn first_issue(&mut self) {
-        self.selected_issue_index = 0;
+        if self.selected_issue_index != 0 {
+            self.selected_issue_index = 0;
+            self.detail_scroll_offset = 0;
+        }
     }
 
     pub fn last_issue(&mut self) {
         if !self.filtered_issues.is_empty() {
-            self.selected_issue_index = self.filtered_issues.len() - 1;
+            let last = self.filtered_issues.len() - 1;
+            if self.selected_issue_index != last {
+                self.selected_issue_index = last;
+                self.detail_scroll_offset = 0;
+            }
         }
     }
 
@@ -317,6 +339,47 @@ impl<C: LinearApi> App<C> {
         self.filtered_issues
             .get(self.selected_issue_index)
             .map(|f| &f.item)
+    }
+
+    pub fn enter_detail_view(&mut self) {
+        if self.selected_issue().is_some() {
+            self.mode = Mode::DetailView;
+            self.detail_scroll_offset = 0;
+        }
+    }
+
+    pub fn exit_detail_view(&mut self) {
+        self.mode = Mode::Normal;
+    }
+
+    pub fn scroll_detail_down(&mut self) {
+        let max_scroll = self
+            .detail_content_height
+            .saturating_sub(self.detail_viewport_height);
+        if self.detail_scroll_offset < max_scroll {
+            self.detail_scroll_offset += 1;
+        }
+    }
+
+    pub fn scroll_detail_up(&mut self) {
+        self.detail_scroll_offset = self.detail_scroll_offset.saturating_sub(1);
+    }
+
+    pub fn scroll_detail_top(&mut self) {
+        self.detail_scroll_offset = 0;
+    }
+
+    pub fn scroll_detail_bottom(&mut self) {
+        self.detail_scroll_offset = self
+            .detail_content_height
+            .saturating_sub(self.detail_viewport_height);
+    }
+
+    pub fn open_selected_issue(&self) -> Result<()> {
+        if let Some(issue) = self.selected_issue() {
+            open::that(&issue.url)?;
+        }
+        Ok(())
     }
 
     pub fn next_picker_item(&mut self) {
@@ -342,7 +405,7 @@ impl<C: LinearApi> App<C> {
             Mode::IssueFilter => {
                 self.next_issue();
             }
-            Mode::Normal => {}
+            Mode::Normal | Mode::DetailView => {}
         }
     }
 
@@ -360,7 +423,7 @@ impl<C: LinearApi> App<C> {
             Mode::IssueFilter => {
                 self.previous_issue();
             }
-            Mode::Normal => {}
+            Mode::Normal | Mode::DetailView => {}
         }
     }
 
@@ -430,7 +493,7 @@ impl<C: LinearApi> App<C> {
             Mode::StatusSelect => {
                 self.status_filter.clear();
             }
-            Mode::Normal => {}
+            Mode::Normal | Mode::DetailView => {}
         }
         self.mode = Mode::Normal;
     }
@@ -495,6 +558,7 @@ mod tests {
                         identifier: "ENG-1".to_string(),
                         title: "Fix login bug".to_string(),
                         description: Some("Users can't log in".to_string()),
+                        url: "https://linear.app/test/issue/ENG-1".to_string(),
                         state: WorkflowState {
                             id: "state-1".to_string(),
                             name: "Todo".to_string(),
@@ -510,6 +574,7 @@ mod tests {
                         identifier: "ENG-2".to_string(),
                         title: "Add feature flag".to_string(),
                         description: None,
+                        url: "https://linear.app/test/issue/ENG-2".to_string(),
                         state: WorkflowState {
                             id: "state-2".to_string(),
                             name: "In Progress".to_string(),
@@ -525,6 +590,7 @@ mod tests {
                         identifier: "ENG-3".to_string(),
                         title: "Fix performance issue".to_string(),
                         description: None,
+                        url: "https://linear.app/test/issue/ENG-3".to_string(),
                         state: WorkflowState {
                             id: "state-1".to_string(),
                             name: "Todo".to_string(),
@@ -893,5 +959,115 @@ mod tests {
             Some("Sprint 2".to_string())
         );
         assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn enter_detail_view_changes_mode() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+
+        app.enter_detail_view();
+
+        assert_eq!(app.mode, Mode::DetailView);
+        assert_eq!(app.detail_scroll_offset, 0);
+    }
+
+    #[test]
+    fn enter_detail_view_does_nothing_when_no_issues() {
+        let mut app = create_test_app();
+        app.filtered_issues = Vec::new();
+
+        app.enter_detail_view();
+
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn exit_detail_view_returns_to_normal() {
+        let mut app = create_test_app();
+        app.mode = Mode::DetailView;
+
+        app.exit_detail_view();
+
+        assert_eq!(app.mode, Mode::Normal);
+    }
+
+    #[test]
+    fn scroll_detail_down_increments_offset() {
+        let mut app = create_test_app();
+        app.detail_content_height = 100;
+        app.detail_viewport_height = 20;
+        app.detail_scroll_offset = 0;
+
+        app.scroll_detail_down();
+
+        assert_eq!(app.detail_scroll_offset, 1);
+    }
+
+    #[test]
+    fn scroll_detail_down_stops_at_max() {
+        let mut app = create_test_app();
+        app.detail_content_height = 25;
+        app.detail_viewport_height = 20;
+        app.detail_scroll_offset = 5; // Already at max (25 - 20 = 5)
+
+        app.scroll_detail_down();
+
+        assert_eq!(app.detail_scroll_offset, 5);
+    }
+
+    #[test]
+    fn scroll_detail_up_decrements_offset() {
+        let mut app = create_test_app();
+        app.detail_scroll_offset = 5;
+
+        app.scroll_detail_up();
+
+        assert_eq!(app.detail_scroll_offset, 4);
+    }
+
+    #[test]
+    fn scroll_detail_up_stops_at_zero() {
+        let mut app = create_test_app();
+        app.detail_scroll_offset = 0;
+
+        app.scroll_detail_up();
+
+        assert_eq!(app.detail_scroll_offset, 0);
+    }
+
+    #[test]
+    fn scroll_detail_top_jumps_to_zero() {
+        let mut app = create_test_app();
+        app.detail_scroll_offset = 50;
+
+        app.scroll_detail_top();
+
+        assert_eq!(app.detail_scroll_offset, 0);
+    }
+
+    #[test]
+    fn scroll_detail_bottom_jumps_to_max() {
+        let mut app = create_test_app();
+        app.detail_content_height = 100;
+        app.detail_viewport_height = 20;
+        app.detail_scroll_offset = 0;
+
+        app.scroll_detail_bottom();
+
+        assert_eq!(app.detail_scroll_offset, 80);
+    }
+
+    #[test]
+    fn changing_issue_resets_scroll_offset() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.detail_scroll_offset = 10;
+
+        app.next_issue();
+
+        assert_eq!(app.detail_scroll_offset, 0);
     }
 }

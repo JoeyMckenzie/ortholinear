@@ -47,7 +47,7 @@ async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>
     app.init().await?;
 
     loop {
-        terminal.draw(|frame| ui::render(frame, &app))?;
+        terminal.draw(|frame| ui::render(frame, app))?;
 
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
@@ -58,6 +58,7 @@ async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>
                         KeyCode::Char('k') | KeyCode::Up => app.previous_issue(),
                         KeyCode::Char('g') => app.first_issue(),
                         KeyCode::Char('G') => app.last_issue(),
+                        KeyCode::Enter => app.enter_detail_view(),
                         KeyCode::Char('/') => app.enter_issue_filter(),
                         KeyCode::Char('t') => app.enter_team_select(),
                         KeyCode::Char('c') => app.enter_cycle_select(),
@@ -67,6 +68,21 @@ async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>
                         }
                         KeyCode::Char('x') => app.clear_issue_filter(),
                         KeyCode::Esc => app.clear_error(),
+                        _ => {}
+                    },
+                    Mode::DetailView => match key.code {
+                        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+                            app.exit_detail_view()
+                        }
+                        KeyCode::Char('o') => {
+                            if let Err(e) = app.open_selected_issue() {
+                                app.error = Some(format!("Failed to open URL: {}", e));
+                            }
+                        }
+                        KeyCode::Char('j') | KeyCode::Down => app.scroll_detail_down(),
+                        KeyCode::Char('k') | KeyCode::Up => app.scroll_detail_up(),
+                        KeyCode::Char('g') => app.scroll_detail_top(),
+                        KeyCode::Char('G') => app.scroll_detail_bottom(),
                         _ => {}
                     },
                     Mode::IssueFilter => match key.code {

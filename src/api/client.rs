@@ -112,6 +112,7 @@ impl LinearApi for LinearClient {
                         identifier
                         title
                         description
+                        url
                         state {
                             id
                             name
@@ -174,6 +175,7 @@ impl LinearApi for LinearClient {
                         identifier
                         title
                         description
+                        url
                         state {
                             id
                             name

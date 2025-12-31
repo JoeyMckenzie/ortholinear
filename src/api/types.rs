@@ -68,6 +68,7 @@ pub struct Issue {
     pub identifier: String,
     pub title: String,
     pub description: Option<String>,
+    pub url: String,
     pub state: WorkflowState,
     pub assignee: Option<User>,
     pub priority: i32,

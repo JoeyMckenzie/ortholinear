@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
 };
 
-pub fn render<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
+pub fn render<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -25,7 +25,7 @@ pub fn render<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
         Mode::CycleSelect => render_cycle_picker(frame, app),
         Mode::StatusSelect => render_status_picker(frame, app),
         Mode::IssueFilter => render_issue_filter(frame, app),
-        Mode::Normal => {}
+        Mode::Normal | Mode::DetailView => {}
     }
 
     if let Some(error) = &app.error {
@@ -37,7 +37,7 @@ pub fn render<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     }
 }
 
-fn render_header<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
+fn render_header<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
     let team_name = app
         .current_team
         .as_ref()
@@ -76,7 +76,7 @@ fn render_header<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
     frame.render_widget(header, area);
 }
 
-fn render_main<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
+fn render_main<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -89,7 +89,7 @@ fn render_main<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
     render_issue_detail(frame, app, chunks[1]);
 }
 
-fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
+fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
     let items: Vec<ListItem> = app
         .filtered_issues
         .iter()
@@ -135,11 +135,24 @@ fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) 
     frame.render_widget(list, area);
 }
 
-fn render_issue_detail<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
+fn render_issue_detail<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
+    let is_focused = app.mode == Mode::DetailView;
+    let border_color = if is_focused {
+        Color::Cyan
+    } else {
+        Color::DarkGray
+    };
+
+    let title = if is_focused {
+        " Details (focused) "
+    } else {
+        " Details "
+    };
+
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" Details ")
-        .border_style(Style::default().fg(Color::DarkGray))
+        .title(title)
+        .border_style(Style::default().fg(border_color))
         .padding(Padding::horizontal(1));
 
     let inner_area = block.inner(area);
@@ -147,10 +160,19 @@ fn render_issue_detail<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect
 
     if let Some(issue) = app.selected_issue() {
         let content = build_detail_content(issue);
-        let paragraph = Paragraph::new(content).wrap(Wrap { trim: false });
+        let content_height = content.len() as u16;
+
+        // Update app state for scroll calculations
+        app.detail_content_height = content_height;
+        app.detail_viewport_height = inner_area.height;
+
+        let paragraph = Paragraph::new(content)
+            .wrap(Wrap { trim: false })
+            .scroll((app.detail_scroll_offset, 0));
         frame.render_widget(paragraph, inner_area);
     } else {
-        let empty = Paragraph::new("No issue selected").style(Style::default().fg(Color::DarkGray));
+        let empty =
+            Paragraph::new("No issue selected").style(Style::default().fg(Color::DarkGray));
         frame.render_widget(empty, inner_area);
     }
 }
@@ -236,12 +258,14 @@ fn build_detail_content(issue: &Issue) -> Vec<Line<'static>> {
     lines
 }
 
-fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
+fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
     let help_text = match app.mode {
         Mode::Normal => {
             let mut spans = vec![
                 Span::styled(" j/k", Style::default().fg(Color::Yellow)),
                 Span::styled(": nav  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("Enter", Style::default().fg(Color::Yellow)),
+                Span::styled(": focus  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("/", Style::default().fg(Color::Yellow)),
                 Span::styled(": filter  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("s", Style::default().fg(Color::Yellow)),
@@ -262,6 +286,16 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
             spans.push(Span::styled(": quit", Style::default().fg(Color::DarkGray)));
             Line::from(spans)
         }
+        Mode::DetailView => Line::from(vec![
+            Span::styled(" j/k", Style::default().fg(Color::Yellow)),
+            Span::styled(": scroll  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("g/G", Style::default().fg(Color::Yellow)),
+            Span::styled(": top/bottom  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("o", Style::default().fg(Color::Yellow)),
+            Span::styled(": open  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Esc/Enter/q", Style::default().fg(Color::Yellow)),
+            Span::styled(": back", Style::default().fg(Color::DarkGray)),
+        ]),
         Mode::IssueFilter => Line::from(vec![
             Span::styled(" Type to filter  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Tab/↓↑", Style::default().fg(Color::Yellow)),
@@ -271,7 +305,7 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) {
             Span::styled("Esc", Style::default().fg(Color::Yellow)),
             Span::styled(": cancel", Style::default().fg(Color::DarkGray)),
         ]),
-        _ => Line::from(vec![
+        Mode::TeamSelect | Mode::CycleSelect | Mode::StatusSelect => Line::from(vec![
             Span::styled(" Type to filter  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Tab/↓↑", Style::default().fg(Color::Yellow)),
             Span::styled(": navigate  ", Style::default().fg(Color::DarkGray)),
@@ -322,7 +356,7 @@ fn render_filter_input(frame: &mut Frame, filter: &str, area: Rect) {
     frame.render_widget(input, area);
 }
 
-fn render_issue_filter<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
+fn render_issue_filter<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
     let area = centered_rect(50, 60, frame.area());
     frame.render_widget(Clear, area);
 
@@ -368,7 +402,7 @@ fn render_issue_filter<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     frame.render_widget(list, inner_chunks[1]);
 }
 
-fn render_team_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
+fn render_team_picker<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 
@@ -414,7 +448,7 @@ fn render_team_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     frame.render_widget(list, chunks[1]);
 }
 
-fn render_cycle_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
+fn render_cycle_picker<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 
@@ -460,7 +494,7 @@ fn render_cycle_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
     frame.render_widget(list, chunks[1]);
 }
 
-fn render_status_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
+fn render_status_picker<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
     let area = centered_rect(40, 50, frame.area());
     frame.render_widget(Clear, area);
 
