@@ -209,4 +209,18 @@ impl LinearApi for LinearClient {
 
         response.issue_update.issue.context("No issue in response")
     }
+
+    async fn fetch_viewer(&self) -> Result<User> {
+        let query = r#"
+            query Viewer {
+                viewer {
+                    id
+                    name
+                }
+            }
+        "#;
+
+        let response: ViewerResponse = self.query(query, None).await?;
+        Ok(response.viewer)
+    }
 }
