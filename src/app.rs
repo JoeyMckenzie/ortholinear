@@ -56,14 +56,20 @@ pub struct App<C: LinearApi> {
     pub detail_viewport_height: u16,
 }
 
+/// Parse a date string that may be in ISO 8601 format (e.g., "2024-12-30T00:00:00.000Z")
+/// or simple date format (e.g., "2024-12-30")
+fn parse_date(s: &str) -> Option<NaiveDate> {
+    // Take first 10 chars to handle ISO 8601 format
+    let date_part = if s.len() >= 10 { &s[..10] } else { s };
+    NaiveDate::parse_from_str(date_part, "%Y-%m-%d").ok()
+}
+
 pub fn find_current_cycle(cycles: &[Cycle]) -> Option<&Cycle> {
     let today = chrono::Utc::now().date_naive();
 
     cycles.iter().find(|cycle| {
-        let starts = cycle.starts_at.as_ref()
-            .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
-        let ends = cycle.ends_at.as_ref()
-            .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+        let starts = cycle.starts_at.as_ref().and_then(|s| parse_date(s));
+        let ends = cycle.ends_at.as_ref().and_then(|s| parse_date(s));
 
         match (starts, ends) {
             (Some(start), Some(end)) => today >= start && today <= end,
@@ -118,7 +124,17 @@ impl<C: LinearApi> App<C> {
             Ok(teams) => {
                 self.teams = teams;
                 self.update_filtered_teams();
-                if let Some(team) = self.teams.first().cloned() {
+
+                // Apply team default from config, or fall back to first team
+                let default_team = self.config.defaults.team.as_ref().and_then(|name| {
+                    self.teams
+                        .iter()
+                        .find(|t| t.name.eq_ignore_ascii_case(name) || t.key.eq_ignore_ascii_case(name))
+                        .cloned()
+                });
+                let team = default_team.or_else(|| self.teams.first().cloned());
+
+                if let Some(team) = team {
                     self.current_team = Some(team);
                     self.load_team_data().await?;
                 }
@@ -1180,6 +1196,30 @@ mod tests {
         let current = find_current_cycle(&cycles);
 
         assert!(current.is_none());
+    }
+
+    #[test]
+    fn find_current_cycle_handles_iso8601_dates() {
+        // Linear API returns ISO 8601 format dates
+        let yesterday = (chrono::Utc::now() - chrono::Duration::days(1))
+            .format("%Y-%m-%dT00:00:00.000Z")
+            .to_string();
+        let tomorrow = (chrono::Utc::now() + chrono::Duration::days(1))
+            .format("%Y-%m-%dT00:00:00.000Z")
+            .to_string();
+
+        let cycles = vec![Cycle {
+            id: "current-cycle".to_string(),
+            name: Some("Current".to_string()),
+            number: 1,
+            starts_at: Some(yesterday),
+            ends_at: Some(tomorrow),
+        }];
+
+        let current = find_current_cycle(&cycles);
+
+        assert!(current.is_some());
+        assert_eq!(current.unwrap().id, "current-cycle");
     }
 
     #[tokio::test]
