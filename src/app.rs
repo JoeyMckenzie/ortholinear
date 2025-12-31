@@ -529,6 +529,7 @@ mod tests {
         cycles: Vec<Cycle>,
         issues: Vec<Issue>,
         workflow_states: Vec<WorkflowState>,
+        viewer: Option<User>,
     }
 
     impl MockClient {
@@ -632,6 +633,10 @@ mod tests {
                         state_type: "completed".to_string(),
                     },
                 ],
+                viewer: Some(User {
+                    id: "user-1".to_string(),
+                    name: "Test User".to_string(),
+                }),
             }
         }
     }
@@ -649,6 +654,7 @@ mod tests {
             &self,
             _team_id: Option<&str>,
             _cycle_id: Option<&str>,
+            _assignee_id: Option<&str>,
         ) -> anyhow::Result<Vec<Issue>> {
             Ok(self.issues.clone())
         }
@@ -673,6 +679,11 @@ mod tests {
                 .cloned()
                 .unwrap_or(issue.state);
             Ok(issue)
+        }
+
+        async fn fetch_viewer(&self) -> anyhow::Result<User> {
+            use anyhow::Context;
+            self.viewer.clone().context("No viewer configured")
         }
     }
 
