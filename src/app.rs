@@ -1,5 +1,5 @@
 use crate::api::{Cycle, Issue, LinearApi, Team, User, WorkflowState};
-use crate::config::{AssigneeDefault, Config};
+use crate::config::{AssigneeDefault, Config, CycleDefault};
 use crate::fuzzy::{filter_items, FilteredItem};
 use anyhow::Result;
 use chrono::NaiveDate;
@@ -144,7 +144,14 @@ impl<C: LinearApi> App<C> {
             Ok(cycles) => {
                 self.cycles = cycles;
                 self.update_filtered_cycles();
-                self.current_cycle = self.cycles.first().cloned();
+                // Apply cycle default
+                self.current_cycle = match &self.config.defaults.cycle {
+                    CycleDefault::Current => find_current_cycle(&self.cycles).cloned(),
+                    CycleDefault::Number(n) => {
+                        self.cycles.iter().find(|c| c.number == *n).cloned()
+                    }
+                    CycleDefault::None => self.cycles.first().cloned(),
+                };
                 self.selected_cycle_index = 0;
             }
             Err(e) => {
@@ -1177,5 +1184,44 @@ mod tests {
 
         assert!(app.viewer.is_some());
         assert_eq!(app.viewer.as_ref().unwrap().name, "Test User");
+    }
+
+    #[tokio::test]
+    async fn init_applies_current_cycle_default() {
+        use crate::config::CycleDefault;
+
+        let mut config = mock_config();
+        config.defaults.cycle = CycleDefault::Current;
+
+        let mut client = MockClient::new();
+        // Set cycle dates to include today - current cycle is NOT the first in the list
+        let yesterday = (chrono::Utc::now() - chrono::Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string();
+        let tomorrow = (chrono::Utc::now() + chrono::Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string();
+        client.cycles = vec![
+            Cycle {
+                id: "old-cycle".to_string(),
+                name: Some("Old Cycle".to_string()),
+                number: 1,
+                starts_at: Some("2020-01-01".to_string()),
+                ends_at: Some("2020-01-14".to_string()),
+            },
+            Cycle {
+                id: "current-cycle".to_string(),
+                name: Some("Current".to_string()),
+                number: 2,
+                starts_at: Some(yesterday),
+                ends_at: Some(tomorrow),
+            },
+        ];
+
+        let mut app = App::new(client, config);
+        app.init().await.unwrap();
+
+        assert!(app.current_cycle.is_some());
+        assert_eq!(app.current_cycle.as_ref().unwrap().id, "current-cycle");
     }
 }
