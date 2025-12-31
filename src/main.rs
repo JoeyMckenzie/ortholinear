@@ -63,6 +63,10 @@ async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>
                         KeyCode::Char('t') => app.enter_team_select(),
                         KeyCode::Char('c') => app.enter_cycle_select(),
                         KeyCode::Char('s') => app.enter_status_select(),
+                        KeyCode::Char('m') => {
+                            app.toggle_my_issues();
+                            app.load_issues().await?;
+                        }
                         KeyCode::Char('r') => {
                             app.load_issues().await?;
                         }
