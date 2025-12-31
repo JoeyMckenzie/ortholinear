@@ -70,39 +70,44 @@ fn parse_assignee_default(value: Option<&str>) -> AssigneeDefault {
 
 impl Config {
     pub fn load() -> Result<Self> {
-        if let Ok(api_key) = env::var(ENV_VAR_NAME) {
-            if !api_key.is_empty() {
-                return Ok(Self {
-                    api_key,
-                    defaults: DefaultsConfig::default(),
-                });
-            }
-        }
+        // Try to get API key from environment variable
+        let env_api_key = env::var(ENV_VAR_NAME).ok().filter(|s| !s.is_empty());
 
+        // Always try to read config file for defaults (and api_key if not in env)
         let config_path = Self::config_file_path()?;
-        let contents = fs::read_to_string(&config_path).with_context(|| {
-            format!(
-                "Could not read config file at {:?}\n\n\
-                To authenticate, either:\n\
-                1. Set the {} environment variable, or\n\
-                2. Create {:?} with:\n\n\
-                api_key = \"lin_api_...\"",
-                config_path, ENV_VAR_NAME, config_path
-            )
-        })?;
+        let config_file = fs::read_to_string(&config_path)
+            .ok()
+            .and_then(|contents| toml::from_str::<ConfigFile>(&contents).ok());
 
-        let config_file: ConfigFile = toml::from_str(&contents)
-            .with_context(|| format!("Failed to parse config file at {:?}", config_path))?;
-
-        let defaults = config_file.defaults.unwrap_or_default();
-        let defaults_config = DefaultsConfig {
-            team: defaults.team,
-            cycle: parse_cycle_default(defaults.cycle.as_deref()),
-            assignee: parse_assignee_default(defaults.assignee.as_deref()),
+        // Determine API key: env var takes priority, then config file
+        let api_key = match (&env_api_key, &config_file) {
+            (Some(key), _) => key.clone(),
+            (None, Some(cf)) => cf.api_key.clone(),
+            (None, None) => {
+                anyhow::bail!(
+                    "No API key found.\n\n\
+                    To authenticate, either:\n\
+                    1. Set the {} environment variable, or\n\
+                    2. Create {:?} with:\n\n\
+                    api_key = \"lin_api_...\"",
+                    ENV_VAR_NAME,
+                    config_path
+                );
+            }
         };
 
+        // Parse defaults from config file (if it exists)
+        let defaults_config = config_file
+            .and_then(|cf| cf.defaults)
+            .map(|defaults| DefaultsConfig {
+                team: defaults.team,
+                cycle: parse_cycle_default(defaults.cycle.as_deref()),
+                assignee: parse_assignee_default(defaults.assignee.as_deref()),
+            })
+            .unwrap_or_default();
+
         Ok(Self {
-            api_key: config_file.api_key,
+            api_key,
             defaults: defaults_config,
         })
     }
@@ -358,6 +363,9 @@ assignee = "Joey McKenzie"
 
         let config = load_from_file(temp_dir.path()).unwrap();
 
-        assert_eq!(config.defaults.assignee, AssigneeDefault::Name("Joey McKenzie".to_string()));
+        assert_eq!(
+            config.defaults.assignee,
+            AssigneeDefault::Name("Joey McKenzie".to_string())
+        );
     }
 }
