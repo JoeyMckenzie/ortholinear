@@ -545,6 +545,14 @@ impl<C: LinearApi> App<C> {
 mod tests {
     use super::*;
     use crate::api::{LinearApi, WorkflowState};
+    use crate::config::{Config, DefaultsConfig};
+
+    fn mock_config() -> Config {
+        Config {
+            api_key: "test-key".to_string(),
+            defaults: DefaultsConfig::default(),
+        }
+    }
 
     struct MockClient {
         teams: Vec<Team>,
@@ -710,7 +718,7 @@ mod tests {
     }
 
     fn create_test_app() -> App<MockClient> {
-        App::new(MockClient::new())
+        App::new(MockClient::new(), mock_config())
     }
 
     #[tokio::test]
