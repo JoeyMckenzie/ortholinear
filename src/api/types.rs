@@ -90,6 +90,11 @@ pub struct User {
     pub name: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ViewerResponse {
+    pub viewer: User,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct Project {
     pub id: String,
