@@ -112,6 +112,8 @@ impl<C: LinearApi> App<C> {
         self.loading = true;
         self.error = None;
 
+        self.viewer = self.client.fetch_viewer().await.ok();
+
         match self.client.fetch_teams().await {
             Ok(teams) => {
                 self.teams = teams;
@@ -1165,5 +1167,15 @@ mod tests {
         let current = find_current_cycle(&cycles);
 
         assert!(current.is_none());
+    }
+
+    #[tokio::test]
+    async fn init_fetches_viewer() {
+        let mut app = create_test_app();
+
+        app.init().await.unwrap();
+
+        assert!(app.viewer.is_some());
+        assert_eq!(app.viewer.as_ref().unwrap().name, "Test User");
     }
 }
