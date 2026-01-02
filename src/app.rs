@@ -1418,4 +1418,21 @@ mod tests {
         assert!(app.current_team.is_some());
         assert_eq!(app.current_team.as_ref().unwrap().name, "Engineering");
     }
+
+    #[tokio::test]
+    async fn test_toggle_backlog_mode() {
+        let mut app = App::new(MockClient::new(), mock_config());
+        app.init().await.unwrap();
+
+        // Initially in cycle mode
+        assert!(!app.backlog_mode);
+
+        // Toggle to backlog
+        app.backlog_mode = true;
+        assert!(app.backlog_mode);
+
+        // Toggle back to cycle
+        app.backlog_mode = false;
+        assert!(!app.backlog_mode);
+    }
 }
