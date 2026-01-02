@@ -314,8 +314,14 @@ fn build_detail_content<C: LinearApi>(issue: &Issue, app: &App<C>) -> Vec<Line<'
             Style::default().fg(Color::DarkGray).italic(),
         )));
     } else if app.timeline_events.is_empty() {
+        // Show different message based on whether we're focused
+        let message = if app.mode == crate::app::Mode::DetailView {
+            "No activity"
+        } else {
+            "Press Enter to load activity"
+        };
         lines.push(Line::from(Span::styled(
-            "No activity",
+            message,
             Style::default().fg(Color::DarkGray).italic(),
         )));
     } else {

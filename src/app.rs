@@ -555,6 +555,7 @@ impl<C: LinearApi> App<C> {
             if new_index != self.selected_issue_index {
                 self.selected_issue_index = new_index;
                 self.detail_scroll_offset = 0;
+                self.clear_timeline();
             }
         }
     }
@@ -564,6 +565,7 @@ impl<C: LinearApi> App<C> {
         if new_index != self.selected_issue_index {
             self.selected_issue_index = new_index;
             self.detail_scroll_offset = 0;
+            self.clear_timeline();
         }
     }
 
@@ -571,6 +573,7 @@ impl<C: LinearApi> App<C> {
         if self.selected_issue_index != 0 {
             self.selected_issue_index = 0;
             self.detail_scroll_offset = 0;
+            self.clear_timeline();
         }
     }
 
@@ -580,6 +583,7 @@ impl<C: LinearApi> App<C> {
             if self.selected_issue_index != last {
                 self.selected_issue_index = last;
                 self.detail_scroll_offset = 0;
+                self.clear_timeline();
             }
         }
     }
@@ -601,7 +605,7 @@ impl<C: LinearApi> App<C> {
 
     pub fn exit_detail_view(&mut self) {
         self.mode = Mode::Normal;
-        self.clear_timeline();
+        // Keep timeline data so it shows in preview pane
     }
 
     pub fn scroll_detail_down(&mut self) {
@@ -1723,7 +1727,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn exit_detail_view_clears_timeline() {
+    async fn exit_detail_view_keeps_timeline() {
         let mut app = create_test_app();
         app.issues = app.client.issues.clone();
         app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
@@ -1739,6 +1743,26 @@ mod tests {
         app.exit_detail_view();
 
         assert_eq!(app.mode, Mode::Normal);
+        // Timeline should persist when exiting detail view
+        assert!(!app.timeline_events.is_empty());
+    }
+
+    #[test]
+    fn changing_issue_clears_timeline() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+
+        // Manually add timeline events
+        app.timeline_events.push(super::TimelineEvent::Comment {
+            user: "Test".to_string(),
+            body: "Test".to_string(),
+            created_at: "2024-01-01".to_string(),
+        });
+
+        app.next_issue();
+
+        // Timeline should be cleared when selecting a different issue
         assert!(app.timeline_events.is_empty());
     }
 }
