@@ -153,3 +153,39 @@ pub struct IssueUpdatePayload {
     pub success: bool,
     pub issue: Option<Issue>,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Comment {
+    pub id: String,
+    pub body: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    pub user: Option<User>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct IssueHistory {
+    pub id: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    pub actor: Option<User>,
+    #[serde(rename = "fromState")]
+    pub from_state: Option<WorkflowState>,
+    #[serde(rename = "toState")]
+    pub to_state: Option<WorkflowState>,
+    #[serde(rename = "fromAssignee")]
+    pub from_assignee: Option<User>,
+    #[serde(rename = "toAssignee")]
+    pub to_assignee: Option<User>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssueActivityResponse {
+    pub issue: Option<IssueWithActivity>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssueWithActivity {
+    pub comments: Connection<Comment>,
+    pub history: Connection<IssueHistory>,
+}
