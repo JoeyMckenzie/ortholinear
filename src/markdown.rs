@@ -4,6 +4,49 @@ use ratatui::{
     text::{Line, Span},
 };
 
+/// Splits text into spans, bolding any @mentions (e.g., @foo.bar)
+fn style_with_mentions(text: &str, base_style: Style) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    let mut remaining = text;
+
+    while let Some(at_pos) = remaining.find('@') {
+        // Add text before the @
+        if at_pos > 0 {
+            spans.push(Span::styled(remaining[..at_pos].to_string(), base_style));
+        }
+
+        // Find the end of the mention (alphanumeric, dots, underscores, hyphens)
+        let mention_start = at_pos;
+        let after_at = &remaining[at_pos + 1..];
+        let mention_len = after_at
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '.' || *c == '_' || *c == '-')
+            .map(|c| c.len_utf8())
+            .sum::<usize>();
+
+        if mention_len > 0 {
+            // Valid mention - bold it
+            let mention = &remaining[mention_start..mention_start + 1 + mention_len];
+            spans.push(Span::styled(
+                mention.to_string(),
+                base_style.add_modifier(Modifier::BOLD).fg(Color::Cyan),
+            ));
+            remaining = &remaining[mention_start + 1 + mention_len..];
+        } else {
+            // Just a lone @ - add it as regular text
+            spans.push(Span::styled("@".to_string(), base_style));
+            remaining = &remaining[at_pos + 1..];
+        }
+    }
+
+    // Add any remaining text
+    if !remaining.is_empty() {
+        spans.push(Span::styled(remaining.to_string(), base_style));
+    }
+
+    spans
+}
+
 pub fn render_markdown(text: &str) -> Vec<Line<'static>> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_STRIKETHROUGH);
@@ -170,7 +213,8 @@ pub fn render_markdown(text: &str) -> Vec<Line<'static>> {
                         current_line.push(Span::styled(format!("│ {}", line_text), style));
                     }
                 } else {
-                    current_line.push(Span::styled(text.to_string(), style));
+                    // Apply @mention highlighting
+                    current_line.extend(style_with_mentions(&text, style));
                 }
             }
             Event::Code(code) => {
@@ -453,5 +497,74 @@ mod tests {
         if let Some(last) = result.last() {
             assert!(!last.spans.is_empty() || result.len() == 1);
         }
+    }
+
+    #[test]
+    fn mention_is_bold_and_cyan() {
+        let result = render_markdown("Hello @john.doe!");
+        let has_mention_style = result.iter().any(|line| {
+            line.spans.iter().any(|span| {
+                span.content.contains("@john.doe")
+                    && span.style.fg == Some(Color::Cyan)
+                    && span.style.add_modifier.contains(Modifier::BOLD)
+            })
+        });
+        assert!(has_mention_style);
+    }
+
+    #[test]
+    fn mention_with_underscores_and_hyphens() {
+        let result = render_markdown("CC @jane_doe-smith");
+        let has_mention = result.iter().any(|line| {
+            line.spans
+                .iter()
+                .any(|span| span.content.contains("@jane_doe-smith"))
+        });
+        assert!(has_mention);
+    }
+
+    #[test]
+    fn multiple_mentions_highlighted() {
+        let result = render_markdown("Hey @alice and @bob!");
+        let mention_count: usize = result
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .filter(|span| {
+                span.content.starts_with('@')
+                    && span.style.fg == Some(Color::Cyan)
+                    && span.style.add_modifier.contains(Modifier::BOLD)
+            })
+            .count();
+        assert_eq!(mention_count, 2);
+    }
+
+    #[test]
+    fn lone_at_sign_not_styled_as_mention() {
+        let result = render_markdown("Email me @ example.com");
+        // The lone @ should not have cyan/bold styling
+        let has_styled_lone_at = result.iter().any(|line| {
+            line.spans.iter().any(|span| {
+                span.content == "@"
+                    && span.style.fg == Some(Color::Cyan)
+                    && span.style.add_modifier.contains(Modifier::BOLD)
+            })
+        });
+        assert!(!has_styled_lone_at);
+    }
+
+    #[test]
+    fn text_around_mention_preserved() {
+        let result = render_markdown("Before @user after");
+        let spans: Vec<_> = result
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .collect();
+        // Should have "Before ", "@user", " after" as separate spans
+        let has_before = spans.iter().any(|s| s.content.contains("Before"));
+        let has_mention = spans.iter().any(|s| s.content.contains("@user"));
+        let has_after = spans.iter().any(|s| s.content.contains("after"));
+        assert!(has_before);
+        assert!(has_mention);
+        assert!(has_after);
     }
 }
