@@ -878,6 +878,7 @@ mod tests {
                         assignee: None,
                         priority: 1,
                         project: None,
+                        team: None,
                     },
                     Issue {
                         id: "issue-2".to_string(),
@@ -894,6 +895,7 @@ mod tests {
                         assignee: None,
                         priority: 2,
                         project: None,
+                        team: None,
                     },
                     Issue {
                         id: "issue-3".to_string(),
@@ -910,6 +912,7 @@ mod tests {
                         assignee: None,
                         priority: 3,
                         project: None,
+                        team: None,
                     },
                 ],
                 workflow_states: vec![

@@ -101,6 +101,7 @@ pub struct Issue {
     pub assignee: Option<User>,
     pub priority: i32,
     pub project: Option<Project>,
+    pub team: Option<Team>,
 }
 
 /// Represents a workflow state in Linear.
