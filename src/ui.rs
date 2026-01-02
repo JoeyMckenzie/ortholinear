@@ -1,4 +1,4 @@
-use crate::api::{Issue, LinearApi};
+use crate::api::{Issue, LinearApi, TimelineEvent};
 use crate::app::{App, Mode};
 use crate::markdown::render_markdown;
 use ratatui::{
@@ -648,4 +648,26 @@ fn render_loading(frame: &mut Frame) {
         );
 
     frame.render_widget(paragraph, area);
+}
+
+fn format_timeline_date(date_str: &str) -> String {
+    use chrono::NaiveDateTime;
+
+    // Try parsing ISO 8601 format
+    if let Ok(dt) = NaiveDateTime::parse_from_str(
+        &date_str.replace('Z', ""),
+        "%Y-%m-%dT%H:%M:%S%.f",
+    ) {
+        return dt.format("%m-%d-%Y %H:%M").to_string();
+    }
+
+    // Try simple date format
+    if date_str.len() >= 10 {
+        let date_part = &date_str[..10];
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(date_part, "%Y-%m-%d") {
+            return date.format("%m-%d-%Y").to_string();
+        }
+    }
+
+    date_str.to_string()
 }
