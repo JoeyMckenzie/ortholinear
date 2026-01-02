@@ -87,6 +87,56 @@ pub fn find_current_cycle(cycles: &[Cycle]) -> Option<&Cycle> {
     })
 }
 
+/// Merge comments and history into a sorted timeline.
+/// Only includes status and assignee changes from history.
+pub fn merge_timeline_events(
+    comments: Vec<crate::api::Comment>,
+    history: Vec<crate::api::IssueHistory>,
+) -> Vec<TimelineEvent> {
+    let mut events: Vec<TimelineEvent> = Vec::new();
+
+    // Convert comments
+    for comment in comments {
+        events.push(TimelineEvent::Comment {
+            user: comment.user.map(|u| u.name).unwrap_or_else(|| "Unknown".to_string()),
+            body: comment.body,
+            created_at: comment.created_at,
+        });
+    }
+
+    // Convert history (only status and assignee changes)
+    for entry in history {
+        let actor_name = entry.actor.as_ref().map(|a| a.name.clone()).unwrap_or_else(|| "System".to_string());
+
+        // Status change
+        if entry.from_state.is_some() || entry.to_state.is_some() {
+            let from = entry.from_state.map(|s| s.name).unwrap_or_else(|| "None".to_string());
+            let to = entry.to_state.map(|s| s.name).unwrap_or_else(|| "None".to_string());
+            events.push(TimelineEvent::StatusChange {
+                actor: actor_name.clone(),
+                from,
+                to,
+                created_at: entry.created_at.clone(),
+            });
+        }
+
+        // Assignee change
+        if entry.from_assignee.is_some() || entry.to_assignee.is_some() {
+            events.push(TimelineEvent::AssigneeChange {
+                actor: actor_name,
+                from: entry.from_assignee.map(|u| u.name),
+                to: entry.to_assignee.map(|u| u.name),
+                created_at: entry.created_at,
+            });
+        }
+    }
+
+    // Sort by created_at ascending (oldest first)
+    events.sort_by(|a, b| a.created_at().cmp(b.created_at()));
+
+    events
+}
+
 impl<C: LinearApi> App<C> {
     pub fn new(client: C, config: Config) -> Self {
         let filter_my_issues = matches!(config.defaults.assignee, AssigneeDefault::Me);
