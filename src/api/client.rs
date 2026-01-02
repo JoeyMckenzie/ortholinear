@@ -188,6 +188,7 @@ impl LinearApi for LinearClient {
         if let Some(aid) = assignee_id {
             filter["assignee"] = json!({ "id": { "eq": aid } });
         }
+        filter["state"] = json!({ "type": { "eq": "backlog" } });
         filter["cycle"] = json!({ "id": { "isNull": true } });
 
         let variables = json!({ "filter": filter });
