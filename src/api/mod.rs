@@ -42,4 +42,8 @@ pub trait LinearApi: Send + Sync {
         &self,
         issue_id: &str,
     ) -> impl std::future::Future<Output = Result<(Vec<Comment>, Vec<IssueHistory>), ApiError>> + Send;
+    fn search_issues(
+        &self,
+        query: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<Issue>, ApiError>> + Send;
 }

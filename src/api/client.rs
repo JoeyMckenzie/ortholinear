@@ -389,4 +389,49 @@ impl LinearApi for LinearClient {
 
         Ok((issue.comments.nodes, issue.history.nodes))
     }
+
+    async fn search_issues(&self, query: &str) -> Result<Vec<Issue>, ApiError> {
+        let graphql_query = r#"
+            query SearchIssues($filter: IssueFilter) {
+                issues(filter: $filter, first: 50, orderBy: updatedAt) {
+                    nodes {
+                        id
+                        identifier
+                        title
+                        description
+                        url
+                        state {
+                            id
+                            name
+                            color
+                            type
+                        }
+                        assignee {
+                            id
+                            name
+                        }
+                        priority
+                        project {
+                            id
+                            name
+                        }
+                        team {
+                            id
+                            name
+                            key
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let variables = json!({
+            "filter": {
+                "title": { "contains": query }
+            }
+        });
+
+        let response: IssuesResponse = self.query(graphql_query, Some(variables)).await?;
+        Ok(response.issues.nodes)
+    }
 }
