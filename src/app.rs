@@ -501,6 +501,33 @@ impl<C: LinearApi> App<C> {
         self.pending_description_edit = None;
     }
 
+    pub async fn load_timeline(&mut self) -> Result<(), AppError> {
+        let Some(issue) = self.selected_issue() else {
+            return Ok(());
+        };
+
+        let issue_id = issue.id.clone();
+        self.timeline_loading = true;
+        self.timeline_events.clear();
+
+        match self.client.fetch_issue_activity(&issue_id).await {
+            Ok((comments, history)) => {
+                self.timeline_events = merge_timeline_events(comments, history);
+            }
+            Err(e) => {
+                self.error = Some(format!("Failed to load activity: {}", e));
+            }
+        }
+
+        self.timeline_loading = false;
+        Ok(())
+    }
+
+    pub fn clear_timeline(&mut self) {
+        self.timeline_events.clear();
+        self.timeline_loading = false;
+    }
+
     pub async fn select_team_from_filter(&mut self) -> Result<(), AppError> {
         if let Some(filtered) = self.filtered_teams.get(self.selected_team_index) {
             let team = filtered.item.clone();
