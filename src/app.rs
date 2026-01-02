@@ -45,6 +45,8 @@ pub struct App<C: LinearApi> {
     pub current_team: Option<Team>,
     pub current_cycle: Option<Cycle>,
 
+    pub backlog_mode: bool,
+
     pub viewer: Option<User>,
     pub filter_my_issues: bool,
 
@@ -104,6 +106,7 @@ impl<C: LinearApi> App<C> {
             selected_status_index: 0,
             current_team: None,
             current_cycle: None,
+            backlog_mode: false,
             viewer: None,
             filter_my_issues,
             loading: false,
@@ -119,6 +122,8 @@ impl<C: LinearApi> App<C> {
         self.error = None;
 
         self.viewer = self.client.fetch_viewer().await.ok();
+
+        self.backlog_mode = matches!(self.config.defaults.view_mode, crate::config::ViewMode::Backlog);
 
         match self.client.fetch_teams().await {
             Ok(teams) => {
@@ -137,6 +142,11 @@ impl<C: LinearApi> App<C> {
                 if let Some(team) = team {
                     self.current_team = Some(team);
                     self.load_team_data().await?;
+
+                    // If backlog mode is configured, switch to backlog view
+                    if self.backlog_mode {
+                        self.load_backlog_issues().await?;
+                    }
                 }
             }
             Err(e) => {
@@ -211,6 +221,38 @@ impl<C: LinearApi> App<C> {
             }
             Err(e) => {
                 self.error = Some(format!("Failed to load issues: {}", e));
+            }
+        }
+
+        self.loading = false;
+        Ok(())
+    }
+
+    pub async fn load_backlog_issues(&mut self) -> Result<()> {
+        self.loading = true;
+        self.error = None;
+
+        let Some(team) = &self.current_team else {
+            self.loading = false;
+            return Ok(());
+        };
+
+        let team_id = team.id.as_str();
+        let assignee_id = if self.filter_my_issues {
+            self.viewer.as_ref().map(|v| v.id.as_str())
+        } else {
+            None
+        };
+
+        match self.client.fetch_backlog_issues(team_id, assignee_id).await {
+            Ok(issues) => {
+                self.issues = issues;
+                self.issue_filter.clear();
+                self.update_filtered_issues();
+                self.selected_issue_index = 0;
+            }
+            Err(e) => {
+                self.error = Some(format!("Failed to load backlog: {}", e));
             }
         }
 
