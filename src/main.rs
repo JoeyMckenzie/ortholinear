@@ -65,6 +65,14 @@ async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>
                         KeyCode::Char('C') => {
                             app.jump_to_current_cycle().await?;
                         }
+                        KeyCode::Char('B') => {
+                            app.backlog_mode = !app.backlog_mode;
+                            if app.backlog_mode {
+                                app.load_backlog_issues().await?;
+                            } else {
+                                app.load_issues().await?;
+                            }
+                        }
                         KeyCode::Char('s') => app.enter_status_select(),
                         KeyCode::Char('m') => {
                             app.toggle_my_issues();
