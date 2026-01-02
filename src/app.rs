@@ -590,15 +590,18 @@ impl<C: LinearApi> App<C> {
             .map(|f| &f.item)
     }
 
-    pub fn enter_detail_view(&mut self) {
+    pub async fn enter_detail_view(&mut self) -> Result<(), AppError> {
         if self.selected_issue().is_some() {
             self.mode = Mode::DetailView;
             self.detail_scroll_offset = 0;
+            self.load_timeline().await?;
         }
+        Ok(())
     }
 
     pub fn exit_detail_view(&mut self) {
         self.mode = Mode::Normal;
+        self.clear_timeline();
     }
 
     pub fn scroll_detail_down(&mut self) {
@@ -1270,24 +1273,24 @@ mod tests {
         assert_eq!(app.mode, Mode::Normal);
     }
 
-    #[test]
-    fn enter_detail_view_changes_mode() {
+    #[tokio::test]
+    async fn enter_detail_view_changes_mode() {
         let mut app = create_test_app();
         app.issues = app.client.issues.clone();
         app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
 
-        app.enter_detail_view();
+        app.enter_detail_view().await.unwrap();
 
         assert_eq!(app.mode, Mode::DetailView);
         assert_eq!(app.detail_scroll_offset, 0);
     }
 
-    #[test]
-    fn enter_detail_view_does_nothing_when_no_issues() {
+    #[tokio::test]
+    async fn enter_detail_view_does_nothing_when_no_issues() {
         let mut app = create_test_app();
         app.filtered_issues = Vec::new();
 
-        app.enter_detail_view();
+        app.enter_detail_view().await.unwrap();
 
         assert_eq!(app.mode, Mode::Normal);
     }

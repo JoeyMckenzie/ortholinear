@@ -146,7 +146,9 @@ async fn run<C: LinearApi>(
                         KeyCode::Char('k') | KeyCode::Up => app.previous_issue(),
                         KeyCode::Char('g') => app.first_issue(),
                         KeyCode::Char('G') => app.last_issue(),
-                        KeyCode::Enter => app.enter_detail_view(),
+                        KeyCode::Enter => {
+                            app.enter_detail_view().await?;
+                        }
                         KeyCode::Char('/') => app.enter_issue_filter(),
                         KeyCode::Char('t') => app.enter_team_select(),
                         KeyCode::Char('c') => app.enter_cycle_select(),
