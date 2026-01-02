@@ -25,7 +25,8 @@ pub fn render<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
         Mode::CycleSelect => render_cycle_picker(frame, app),
         Mode::StatusSelect => render_status_picker(frame, app),
         Mode::IssueFilter => render_issue_filter(frame, app),
-        Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
+        Mode::Search => render_search_input(frame, app),
+        Mode::Normal | Mode::DetailView | Mode::SearchResults => {}
     }
 
     if let Some(error) = &app.error {
@@ -38,46 +39,64 @@ pub fn render<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
 }
 
 fn render_header<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
-    let team_name = app
-        .current_team
-        .as_ref()
-        .map(|t| t.name.as_str())
-        .unwrap_or("No team");
-
-    let view_label = if app.backlog_mode {
-        "Backlog".to_string()
+    let header_content = if app.in_search_context {
+        let result_count = app.search_results.len();
+        Line::from(vec![
+            Span::styled(" [Search: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(&app.search_query, Style::default().fg(Color::Cyan)),
+            Span::styled("] ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!(
+                    "{} result{}",
+                    result_count,
+                    if result_count == 1 { "" } else { "s" }
+                ),
+                Style::default().fg(Color::Yellow),
+            ),
+        ])
     } else {
-        app.current_cycle
+        let team_name = app
+            .current_team
             .as_ref()
-            .map(|c| c.display_name())
-            .unwrap_or_else(|| "No cycle".to_string())
+            .map(|t| t.name.as_str())
+            .unwrap_or("No team");
+
+        let view_label = if app.backlog_mode {
+            "Backlog".to_string()
+        } else {
+            app.current_cycle
+                .as_ref()
+                .map(|c| c.display_name())
+                .unwrap_or_else(|| "No cycle".to_string())
+        };
+
+        let view_label_text = if app.backlog_mode {
+            "View: "
+        } else {
+            "Cycle: "
+        };
+
+        let filter_indicator = if !app.issue_filter.is_empty() {
+            format!(" [filter: {}]", app.issue_filter)
+        } else {
+            String::new()
+        };
+
+        Line::from(vec![
+            Span::styled(" [Team: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(team_name, Style::default().fg(Color::Cyan)),
+            Span::styled("] ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!("[{}", view_label_text),
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(view_label, Style::default().fg(Color::Cyan)),
+            Span::styled("]", Style::default().fg(Color::DarkGray)),
+            Span::styled(filter_indicator, Style::default().fg(Color::Magenta)),
+        ])
     };
 
-    let view_label_text = if app.backlog_mode {
-        "View: "
-    } else {
-        "Cycle: "
-    };
-
-    let filter_indicator = if !app.issue_filter.is_empty() {
-        format!(" [filter: {}]", app.issue_filter)
-    } else {
-        String::new()
-    };
-
-    let header = Paragraph::new(Line::from(vec![
-        Span::styled(" [Team: ", Style::default().fg(Color::DarkGray)),
-        Span::styled(team_name, Style::default().fg(Color::Cyan)),
-        Span::styled("] ", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("[{}", view_label_text),
-            Style::default().fg(Color::DarkGray),
-        ),
-        Span::styled(view_label, Style::default().fg(Color::Cyan)),
-        Span::styled("]", Style::default().fg(Color::DarkGray)),
-        Span::styled(filter_indicator, Style::default().fg(Color::Magenta)),
-    ]))
-    .block(
+    let header = Paragraph::new(header_content).block(
         Block::default()
             .borders(Borders::ALL)
             .title(" ortholinear ")
@@ -137,26 +156,43 @@ fn build_issues_title<C: LinearApi>(app: &App<C>) -> String {
 }
 
 fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
-    let items: Vec<ListItem> = app
-        .filtered_issues
+    let (issues, selected_index): (Vec<&crate::api::Issue>, usize) = if app.in_search_context {
+        (
+            app.search_results.iter().collect(),
+            app.selected_search_index,
+        )
+    } else {
+        (
+            app.filtered_issues.iter().map(|f| &f.item).collect(),
+            app.selected_issue_index,
+        )
+    };
+
+    let items: Vec<ListItem> = issues
         .iter()
         .enumerate()
-        .map(|(i, filtered)| {
-            let issue = &filtered.item;
-            let style = if i == app.selected_issue_index {
+        .map(|(i, issue)| {
+            let style = if i == selected_index {
                 Style::default().fg(Color::Yellow).bold()
             } else {
                 Style::default()
             };
 
-            let prefix = if i == app.selected_issue_index {
-                "> "
+            let prefix = if i == selected_index { "> " } else { "  " };
+
+            let team_prefix = if app.in_search_context {
+                issue
+                    .team
+                    .as_ref()
+                    .map(|t| format!("[{}] ", t.key))
+                    .unwrap_or_default()
             } else {
-                "  "
+                String::new()
             };
 
             ListItem::new(Line::from(vec![
                 Span::styled(prefix, style),
+                Span::styled(team_prefix, Style::default().fg(Color::Magenta)),
                 Span::styled(&issue.identifier, Style::default().fg(Color::Blue)),
                 Span::raw(" "),
                 Span::styled(&issue.title, style),
@@ -164,7 +200,11 @@ fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Re
         })
         .collect();
 
-    let title = build_issues_title(app);
+    let title = if app.in_search_context {
+        " Search Results ".to_string()
+    } else {
+        build_issues_title(app)
+    };
 
     let list = List::new(items).block(
         Block::default()
@@ -411,6 +451,8 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
                 Span::styled(": focus  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("/", Style::default().fg(Color::Yellow)),
                 Span::styled(": filter  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("^f", Style::default().fg(Color::Yellow)),
+                Span::styled(": search  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("s", Style::default().fg(Color::Yellow)),
                 Span::styled(": status  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("t", Style::default().fg(Color::Yellow)),
@@ -472,7 +514,23 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
             Span::styled("Esc", Style::default().fg(Color::Yellow)),
             Span::styled(": cancel", Style::default().fg(Color::DarkGray)),
         ]),
-        Mode::Search | Mode::SearchResults => Line::from(vec![]),
+        Mode::Search => Line::from(vec![
+            Span::styled(" Type to search  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Enter", Style::default().fg(Color::Yellow)),
+            Span::styled(": search  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Esc", Style::default().fg(Color::Yellow)),
+            Span::styled(": cancel", Style::default().fg(Color::DarkGray)),
+        ]),
+        Mode::SearchResults => Line::from(vec![
+            Span::styled(" j/k", Style::default().fg(Color::Yellow)),
+            Span::styled(": navigate  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Enter", Style::default().fg(Color::Yellow)),
+            Span::styled(": view  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Esc", Style::default().fg(Color::Yellow)),
+            Span::styled(": exit search  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("q", Style::default().fg(Color::Yellow)),
+            Span::styled(": quit", Style::default().fg(Color::DarkGray)),
+        ]),
     };
 
     let footer = Paragraph::new(help_text).block(
@@ -714,6 +772,27 @@ fn render_status_picker<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
 
     let list = List::new(items);
     frame.render_widget(list, chunks[1]);
+}
+
+fn render_search_input<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
+    let area = centered_rect(50, 20, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .title(" Search Issues ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let input = Paragraph::new(Line::from(vec![
+        Span::styled("> ", Style::default().fg(Color::Cyan)),
+        Span::raw(&app.search_query),
+        Span::styled("█", Style::default().fg(Color::Cyan)),
+    ]));
+
+    frame.render_widget(input, inner);
 }
 
 fn render_error_popup(frame: &mut Frame, error: &str) {
