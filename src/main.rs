@@ -42,8 +42,10 @@ async fn main() -> Result<()> {
     result
 }
 
-async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App<C>) -> Result<()> {
-
+async fn run<C: LinearApi>(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App<C>,
+) -> Result<()> {
     app.init().await?;
 
     loop {
@@ -64,6 +66,14 @@ async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>
                         KeyCode::Char('c') => app.enter_cycle_select(),
                         KeyCode::Char('C') => {
                             app.jump_to_current_cycle().await?;
+                        }
+                        KeyCode::Char('B') => {
+                            app.backlog_mode = !app.backlog_mode;
+                            if app.backlog_mode {
+                                app.load_backlog_issues().await?;
+                            } else {
+                                app.load_issues().await?;
+                            }
                         }
                         KeyCode::Char('s') => app.enter_status_select(),
                         KeyCode::Char('m') => {
