@@ -52,9 +52,9 @@ impl LinearClient {
             return Err(ApiError::GraphQL { messages });
         }
 
-        result
-            .data
-            .ok_or(ApiError::MissingData { context: "response" })
+        result.data.ok_or(ApiError::MissingData {
+            context: "response",
+        })
     }
 }
 
@@ -214,11 +214,7 @@ impl LinearApi for LinearClient {
         Ok(response.workflow_states.nodes)
     }
 
-    async fn update_issue_status(
-        &self,
-        issue_id: &str,
-        state_id: &str,
-    ) -> Result<Issue, ApiError> {
+    async fn update_issue_status(&self, issue_id: &str, state_id: &str) -> Result<Issue, ApiError> {
         let query = r#"
             mutation UpdateIssueState($issueId: String!, $stateId: String!) {
                 issueUpdate(id: $issueId, input: { stateId: $stateId }) {

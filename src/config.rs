@@ -14,10 +14,16 @@ pub enum ConfigError {
     ConfigDirNotFound,
 
     #[error("Failed to read config file at {}: {source}", .path.display())]
-    FileRead { path: PathBuf, source: std::io::Error },
+    FileRead {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 
     #[error("Failed to parse config file at {}: {source}", .path.display())]
-    Parse { path: PathBuf, source: toml::de::Error },
+    Parse {
+        path: PathBuf,
+        source: toml::de::Error,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]

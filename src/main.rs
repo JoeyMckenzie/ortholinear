@@ -108,7 +108,8 @@ async fn edit_description<C: LinearApi>(
 
             // Only update if content changed
             if new_description != original_description {
-                app.update_selected_issue_description(&new_description).await?;
+                app.update_selected_issue_description(&new_description)
+                    .await?;
             } else {
                 // Clear any pending edit since user didn't change anything
                 app.clear_pending_description_edit();

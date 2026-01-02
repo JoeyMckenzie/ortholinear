@@ -359,7 +359,10 @@ impl<C: LinearApi> App<C> {
         }
     }
 
-    pub async fn update_selected_issue_status(&mut self, _state: &WorkflowState) -> Result<(), AppError> {
+    pub async fn update_selected_issue_status(
+        &mut self,
+        _state: &WorkflowState,
+    ) -> Result<(), AppError> {
         let Some(filtered_item) = self.filtered_states.get(self.selected_status_index) else {
             return Ok(());
         };
