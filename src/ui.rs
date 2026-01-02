@@ -200,7 +200,7 @@ fn render_issue_detail<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: 
     frame.render_widget(block, area);
 
     if let Some(issue) = app.selected_issue() {
-        let content = build_detail_content(issue);
+        let content = build_detail_content(issue, app);
         let content_height = content.len() as u16;
 
         // Update app state for scroll calculations
@@ -217,7 +217,7 @@ fn render_issue_detail<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: 
     }
 }
 
-fn build_detail_content(issue: &Issue) -> Vec<Line<'static>> {
+fn build_detail_content<C: LinearApi>(issue: &Issue, app: &App<C>) -> Vec<Line<'static>> {
     let priority_label = match issue.priority {
         0 => ("No priority", Color::DarkGray),
         1 => ("Urgent", Color::Red),
@@ -295,7 +295,104 @@ fn build_detail_content(issue: &Issue) -> Vec<Line<'static>> {
         )));
     }
 
+    // Add Activity section
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "───────────────────────────────",
+        Style::default().fg(Color::DarkGray),
+    )));
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "Activity:",
+        Style::default().fg(Color::DarkGray),
+    )));
+    lines.push(Line::from(""));
+
+    if app.timeline_loading {
+        lines.push(Line::from(Span::styled(
+            "Loading activity...",
+            Style::default().fg(Color::DarkGray).italic(),
+        )));
+    } else if app.timeline_events.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "No activity",
+            Style::default().fg(Color::DarkGray).italic(),
+        )));
+    } else {
+        for event in &app.timeline_events {
+            lines.extend(render_timeline_event(event));
+            lines.push(Line::from(""));
+        }
+    }
+
     lines
+}
+
+fn render_timeline_event(event: &TimelineEvent) -> Vec<Line<'static>> {
+    match event {
+        TimelineEvent::Comment { user, body, created_at } => {
+            let mut lines = vec![
+                Line::from(vec![
+                    Span::styled(" ", Style::default().fg(Color::White)),
+                    Span::styled(user.clone(), Style::default().bold()),
+                    Span::styled(" · ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        format_timeline_date(created_at),
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                ]),
+            ];
+            // Render comment body as markdown
+            let body_lines = render_markdown(body);
+            for line in body_lines {
+                // Indent comment body
+                let mut spans = vec![Span::raw("  ")];
+                spans.extend(line.spans);
+                lines.push(Line::from(spans));
+            }
+            lines
+        }
+        TimelineEvent::StatusChange { actor, from, to, created_at } => {
+            vec![
+                Line::from(vec![
+                    Span::styled(" ", Style::default().fg(Color::Yellow)),
+                    Span::styled(actor.clone(), Style::default().bold()),
+                    Span::styled(" · ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        format_timeline_date(created_at),
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                ]),
+                Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled(from.clone(), Style::default().fg(Color::DarkGray)),
+                    Span::styled(" → ", Style::default().fg(Color::Yellow)),
+                    Span::styled(to.clone(), Style::default().fg(Color::White)),
+                ]),
+            ]
+        }
+        TimelineEvent::AssigneeChange { actor, from, to, created_at } => {
+            let from_name = from.clone().unwrap_or_else(|| "Unassigned".to_string());
+            let to_name = to.clone().unwrap_or_else(|| "Unassigned".to_string());
+            vec![
+                Line::from(vec![
+                    Span::styled(" ", Style::default().fg(Color::Cyan)),
+                    Span::styled(actor.clone(), Style::default().bold()),
+                    Span::styled(" · ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        format_timeline_date(created_at),
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                ]),
+                Line::from(vec![
+                    Span::raw("  "),
+                    Span::styled(from_name, Style::default().fg(Color::DarkGray)),
+                    Span::styled(" → ", Style::default().fg(Color::Cyan)),
+                    Span::styled(to_name, Style::default().fg(Color::White)),
+                ]),
+            ]
+        }
+    }
 }
 
 fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) {
