@@ -102,6 +102,7 @@ pub struct WorkflowState {
     pub id: String,
     pub name: String,
     pub color: String,
+    /// Workflow state category: "Backlog", "Active", "Completed", or "Canceled"
     #[serde(rename = "type")]
     pub state_type: String,
 }
