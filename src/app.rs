@@ -3,6 +3,7 @@ use crate::config::{AssigneeDefault, Config, CycleDefault};
 use crate::error::AppError;
 use crate::fuzzy::{filter_items, FilteredItem};
 use chrono::NaiveDate;
+use std::collections::HashMap;
 
 #[cfg(test)]
 use crate::api::ApiError;
@@ -63,6 +64,7 @@ pub struct App<C: LinearApi> {
     pub pending_description_edit: Option<String>,
     pub timeline_events: Vec<TimelineEvent>,
     pub timeline_loading: bool,
+    pub timeline_cache: HashMap<String, Vec<TimelineEvent>>,
 }
 
 /// Parse a date string that may be in ISO 8601 format (e.g., "2024-12-30T00:00:00.000Z")
@@ -174,6 +176,7 @@ impl<C: LinearApi> App<C> {
             pending_description_edit: None,
             timeline_events: Vec::new(),
             timeline_loading: false,
+            timeline_cache: HashMap::new(),
         }
     }
 
@@ -266,6 +269,7 @@ impl<C: LinearApi> App<C> {
     pub async fn load_issues(&mut self) -> Result<(), AppError> {
         self.loading = true;
         self.error = None;
+        self.clear_timeline_cache();
 
         let team_id = self.current_team.as_ref().map(|t| t.id.as_str());
         let cycle_id = self.current_cycle.as_ref().map(|c| c.id.as_str());
@@ -298,6 +302,7 @@ impl<C: LinearApi> App<C> {
     pub async fn load_backlog_issues(&mut self) -> Result<(), AppError> {
         self.loading = true;
         self.error = None;
+        self.clear_timeline_cache();
 
         let Some(team) = &self.current_team else {
             self.loading = false;
@@ -507,12 +512,21 @@ impl<C: LinearApi> App<C> {
         };
 
         let issue_id = issue.id.clone();
+
+        // Check cache first
+        if let Some(cached) = self.timeline_cache.get(&issue_id) {
+            self.timeline_events = cached.clone();
+            return Ok(());
+        }
+
         self.timeline_loading = true;
         self.timeline_events.clear();
 
         match self.client.fetch_issue_activity(&issue_id).await {
             Ok((comments, history)) => {
-                self.timeline_events = merge_timeline_events(comments, history);
+                let events = merge_timeline_events(comments, history);
+                self.timeline_cache.insert(issue_id, events.clone());
+                self.timeline_events = events;
             }
             Err(e) => {
                 self.error = Some(format!("Failed to load activity: {}", e));
@@ -526,6 +540,22 @@ impl<C: LinearApi> App<C> {
     pub fn clear_timeline(&mut self) {
         self.timeline_events.clear();
         self.timeline_loading = false;
+    }
+
+    pub fn clear_timeline_cache(&mut self) {
+        self.timeline_cache.clear();
+        self.clear_timeline();
+    }
+
+    /// Load timeline from cache if available for the current issue
+    fn load_timeline_from_cache(&mut self) {
+        if let Some(issue) = self.selected_issue() {
+            if let Some(cached) = self.timeline_cache.get(&issue.id) {
+                self.timeline_events = cached.clone();
+                return;
+            }
+        }
+        self.timeline_events.clear();
     }
 
     pub async fn select_team_from_filter(&mut self) -> Result<(), AppError> {
@@ -555,7 +585,7 @@ impl<C: LinearApi> App<C> {
             if new_index != self.selected_issue_index {
                 self.selected_issue_index = new_index;
                 self.detail_scroll_offset = 0;
-                self.clear_timeline();
+                self.load_timeline_from_cache();
             }
         }
     }
@@ -565,7 +595,7 @@ impl<C: LinearApi> App<C> {
         if new_index != self.selected_issue_index {
             self.selected_issue_index = new_index;
             self.detail_scroll_offset = 0;
-            self.clear_timeline();
+            self.load_timeline_from_cache();
         }
     }
 
@@ -573,7 +603,7 @@ impl<C: LinearApi> App<C> {
         if self.selected_issue_index != 0 {
             self.selected_issue_index = 0;
             self.detail_scroll_offset = 0;
-            self.clear_timeline();
+            self.load_timeline_from_cache();
         }
     }
 
@@ -583,7 +613,7 @@ impl<C: LinearApi> App<C> {
             if self.selected_issue_index != last {
                 self.selected_issue_index = last;
                 self.detail_scroll_offset = 0;
-                self.clear_timeline();
+                self.load_timeline_from_cache();
             }
         }
     }
@@ -1748,12 +1778,12 @@ mod tests {
     }
 
     #[test]
-    fn changing_issue_clears_timeline() {
+    fn changing_issue_clears_uncached_timeline() {
         let mut app = create_test_app();
         app.issues = app.client.issues.clone();
         app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
 
-        // Manually add timeline events
+        // Manually add timeline events (not in cache)
         app.timeline_events.push(super::TimelineEvent::Comment {
             user: "Test".to_string(),
             body: "Test".to_string(),
@@ -1762,7 +1792,35 @@ mod tests {
 
         app.next_issue();
 
-        // Timeline should be cleared when selecting a different issue
+        // Timeline should be cleared when selecting different issue (no cache for new issue)
         assert!(app.timeline_events.is_empty());
+    }
+
+    #[test]
+    fn changing_issue_loads_from_cache() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+
+        // Cache timeline for second issue
+        let second_issue_id = app.filtered_issues[1].item.id.clone();
+        app.timeline_cache.insert(
+            second_issue_id,
+            vec![super::TimelineEvent::Comment {
+                user: "Cached".to_string(),
+                body: "Cached comment".to_string(),
+                created_at: "2024-01-01".to_string(),
+            }],
+        );
+
+        // Navigate to second issue
+        app.next_issue();
+
+        // Timeline should load from cache
+        assert_eq!(app.timeline_events.len(), 1);
+        assert!(matches!(
+            &app.timeline_events[0],
+            super::TimelineEvent::Comment { user, .. } if user == "Cached"
+        ));
     }
 }
