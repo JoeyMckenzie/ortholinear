@@ -18,6 +18,11 @@ pub trait LinearApi: Send + Sync {
         cycle_id: Option<&str>,
         assignee_id: Option<&str>,
     ) -> impl std::future::Future<Output = Result<Vec<Issue>>> + Send;
+    fn fetch_backlog_issues(
+        &self,
+        team_id: &str,
+        assignee_id: Option<&str>,
+    ) -> impl std::future::Future<Output = Result<Vec<Issue>>> + Send;
     fn fetch_workflow_states(
         &self,
         team_id: &str,
