@@ -15,6 +15,13 @@ pub enum CycleDefault {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
+pub enum ViewMode {
+    #[default]
+    Cycle,
+    Backlog,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum AssigneeDefault {
     #[default]
     None,
@@ -27,6 +34,7 @@ pub struct DefaultsConfig {
     pub team: Option<String>,
     pub cycle: CycleDefault,
     pub assignee: AssigneeDefault,
+    pub view_mode: ViewMode,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -34,6 +42,7 @@ struct DefaultsConfigFile {
     team: Option<String>,
     cycle: Option<String>,
     assignee: Option<String>,
+    view_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,6 +74,14 @@ fn parse_assignee_default(value: Option<&str>) -> AssigneeDefault {
         None | Some("none") => AssigneeDefault::None,
         Some("me") => AssigneeDefault::Me,
         Some(s) => AssigneeDefault::Name(s.to_string()),
+    }
+}
+
+fn parse_view_mode(value: Option<&str>) -> ViewMode {
+    match value {
+        None | Some("cycle") => ViewMode::Cycle,
+        Some("backlog") => ViewMode::Backlog,
+        Some(_) => ViewMode::Cycle, // default for unknown values
     }
 }
 
@@ -102,6 +119,7 @@ impl Config {
                 team: defaults.team,
                 cycle: parse_cycle_default(defaults.cycle.as_deref()),
                 assignee: parse_assignee_default(defaults.assignee.as_deref()),
+                view_mode: parse_view_mode(defaults.view_mode.as_deref()),
             })
             .unwrap_or_default();
 
@@ -149,6 +167,7 @@ mod tests {
             team: defaults.team,
             cycle: parse_cycle_default(defaults.cycle.as_deref()),
             assignee: parse_assignee_default(defaults.assignee.as_deref()),
+            view_mode: parse_view_mode(defaults.view_mode.as_deref()),
         };
 
         Ok(Config {
@@ -396,10 +415,68 @@ assignee = "me"
             team: defaults.team,
             cycle: parse_cycle_default(defaults.cycle.as_deref()),
             assignee: parse_assignee_default(defaults.assignee.as_deref()),
+            view_mode: parse_view_mode(defaults.view_mode.as_deref()),
         };
 
         assert_eq!(defaults_config.team, Some("Fundraising".to_string()));
         assert_eq!(defaults_config.cycle, CycleDefault::Current);
         assert_eq!(defaults_config.assignee, AssigneeDefault::Me);
+    }
+
+    #[test]
+    fn view_mode_backlog_parses() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+api_key = "lin_api_test"
+
+[defaults]
+view_mode = "backlog"
+"#;
+
+        let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
+        let mut file = fs::File::create(&config_path).unwrap();
+        file.write_all(config_content.as_bytes()).unwrap();
+
+        let config = load_from_file(temp_dir.path()).unwrap();
+
+        assert_eq!(config.defaults.view_mode, ViewMode::Backlog);
+    }
+
+    #[test]
+    fn view_mode_cycle_parses() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+api_key = "lin_api_test"
+
+[defaults]
+view_mode = "cycle"
+"#;
+
+        let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
+        let mut file = fs::File::create(&config_path).unwrap();
+        file.write_all(config_content.as_bytes()).unwrap();
+
+        let config = load_from_file(temp_dir.path()).unwrap();
+
+        assert_eq!(config.defaults.view_mode, ViewMode::Cycle);
+    }
+
+    #[test]
+    fn missing_view_mode_defaults_to_cycle() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_content = r#"
+api_key = "lin_api_test"
+
+[defaults]
+team = "Engineering"
+"#;
+
+        let config_path = temp_dir.path().join(CONFIG_FILE_NAME);
+        let mut file = fs::File::create(&config_path).unwrap();
+        file.write_all(config_content.as_bytes()).unwrap();
+
+        let config = load_from_file(temp_dir.path()).unwrap();
+
+        assert_eq!(config.defaults.view_mode, ViewMode::Cycle);
     }
 }
