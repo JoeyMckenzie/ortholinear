@@ -97,11 +97,18 @@ pub struct Issue {
     pub project: Option<Project>,
 }
 
+/// Represents a workflow state in Linear.
+///
+/// The `state_type` field contains one of Linear's standard workflow state types:
+/// - "unstarted": Initial state (e.g., "Todo", "Backlog")
+/// - "started": Active work (e.g., "In Progress")
+/// - "completed": Finished work (e.g., "Done")
 #[derive(Debug, Clone, Deserialize)]
 pub struct WorkflowState {
     pub id: String,
     pub name: String,
     pub color: String,
+    /// The type of workflow state (e.g., "unstarted", "started", "completed")
     #[serde(rename = "type")]
     pub state_type: String,
 }
