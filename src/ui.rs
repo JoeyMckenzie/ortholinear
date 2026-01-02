@@ -44,11 +44,21 @@ fn render_header<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
         .map(|t| t.name.as_str())
         .unwrap_or("No team");
 
-    let cycle_name = app
-        .current_cycle
-        .as_ref()
-        .map(|c| c.display_name())
-        .unwrap_or_else(|| "No cycle".to_string());
+    let view_label = if app.backlog_mode {
+        "Backlog".to_string()
+    } else {
+        app
+            .current_cycle
+            .as_ref()
+            .map(|c| c.display_name())
+            .unwrap_or_else(|| "No cycle".to_string())
+    };
+
+    let view_label_text = if app.backlog_mode {
+        "View: "
+    } else {
+        "Cycle: "
+    };
 
     let filter_indicator = if !app.issue_filter.is_empty() {
         format!(" [filter: {}]", app.issue_filter)
@@ -60,8 +70,8 @@ fn render_header<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
         Span::styled(" [Team: ", Style::default().fg(Color::DarkGray)),
         Span::styled(team_name, Style::default().fg(Color::Cyan)),
         Span::styled("] ", Style::default().fg(Color::DarkGray)),
-        Span::styled("[Cycle: ", Style::default().fg(Color::DarkGray)),
-        Span::styled(cycle_name, Style::default().fg(Color::Cyan)),
+        Span::styled(format!("[{}",view_label_text), Style::default().fg(Color::DarkGray)),
+        Span::styled(view_label, Style::default().fg(Color::Cyan)),
         Span::styled("]", Style::default().fg(Color::DarkGray)),
         Span::styled(filter_indicator, Style::default().fg(Color::Magenta)),
     ]))
@@ -298,6 +308,8 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
                 Span::styled(": team  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("c", Style::default().fg(Color::Yellow)),
                 Span::styled(": cycle  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("B", Style::default().fg(Color::Yellow)),
+                Span::styled(": backlog  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("C", Style::default().fg(Color::Yellow)),
                 Span::styled(": current  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("m", Style::default().fg(Color::Yellow)),
