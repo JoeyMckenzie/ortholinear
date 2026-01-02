@@ -17,6 +17,8 @@ pub enum Mode {
     TeamSelect,
     CycleSelect,
     StatusSelect,
+    Search,
+    SearchResults,
 }
 
 pub struct App<C: LinearApi> {
@@ -65,6 +67,11 @@ pub struct App<C: LinearApi> {
     pub timeline_events: Vec<TimelineEvent>,
     pub timeline_loading: bool,
     pub timeline_cache: HashMap<String, Vec<TimelineEvent>>,
+
+    pub search_query: String,
+    pub search_results: Vec<Issue>,
+    pub in_search_context: bool,
+    pub selected_search_index: usize,
 }
 
 /// Parse a date string that may be in ISO 8601 format (e.g., "2024-12-30T00:00:00.000Z")
@@ -177,6 +184,10 @@ impl<C: LinearApi> App<C> {
             timeline_events: Vec::new(),
             timeline_loading: false,
             timeline_cache: HashMap::new(),
+            search_query: String::new(),
+            search_results: Vec::new(),
+            in_search_context: false,
+            selected_search_index: 0,
         }
     }
 
@@ -378,7 +389,7 @@ impl<C: LinearApi> App<C> {
                 self.update_filtered_states();
                 self.selected_status_index = 0;
             }
-            Mode::Normal | Mode::DetailView => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
     }
 
@@ -404,7 +415,7 @@ impl<C: LinearApi> App<C> {
                 self.update_filtered_states();
                 self.selected_status_index = 0;
             }
-            Mode::Normal | Mode::DetailView => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
     }
 
@@ -414,7 +425,7 @@ impl<C: LinearApi> App<C> {
             Mode::TeamSelect => &self.team_filter,
             Mode::CycleSelect => &self.cycle_filter,
             Mode::StatusSelect => &self.status_filter,
-            Mode::Normal | Mode::DetailView => "",
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => "",
         }
     }
 
@@ -691,7 +702,7 @@ impl<C: LinearApi> App<C> {
             Mode::IssueFilter => {
                 self.next_issue();
             }
-            Mode::Normal | Mode::DetailView => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
     }
 
@@ -709,7 +720,7 @@ impl<C: LinearApi> App<C> {
             Mode::IssueFilter => {
                 self.previous_issue();
             }
-            Mode::Normal | Mode::DetailView => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
     }
 
@@ -779,7 +790,7 @@ impl<C: LinearApi> App<C> {
             Mode::StatusSelect => {
                 self.status_filter.clear();
             }
-            Mode::Normal | Mode::DetailView => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
         self.mode = Mode::Normal;
     }
@@ -1012,6 +1023,10 @@ mod tests {
             _issue_id: &str,
         ) -> Result<(Vec<Comment>, Vec<IssueHistory>), ApiError> {
             Ok((Vec::new(), Vec::new()))
+        }
+
+        async fn search_issues(&self, _query: &str) -> Result<Vec<Issue>, ApiError> {
+            Ok(self.issues.clone())
         }
     }
 

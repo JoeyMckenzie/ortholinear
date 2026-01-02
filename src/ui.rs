@@ -25,7 +25,7 @@ pub fn render<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
         Mode::CycleSelect => render_cycle_picker(frame, app),
         Mode::StatusSelect => render_status_picker(frame, app),
         Mode::IssueFilter => render_issue_filter(frame, app),
-        Mode::Normal | Mode::DetailView => {}
+        Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
     }
 
     if let Some(error) = &app.error {
@@ -472,6 +472,7 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
             Span::styled("Esc", Style::default().fg(Color::Yellow)),
             Span::styled(": cancel", Style::default().fg(Color::DarkGray)),
         ]),
+        Mode::Search | Mode::SearchResults => Line::from(vec![]),
     };
 
     let footer = Paragraph::new(help_text).block(

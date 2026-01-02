@@ -241,6 +241,7 @@ async fn run<C: LinearApi>(
                         KeyCode::Char(c) => app.filter_input(c),
                         _ => {}
                     },
+                    Mode::Search | Mode::SearchResults => {}
                 }
             }
         }
