@@ -695,7 +695,7 @@ impl<C: LinearApi> App<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::{LinearApi, WorkflowState};
+    use crate::api::{Comment, IssueHistory, LinearApi, WorkflowState};
     use crate::config::{Config, DefaultsConfig};
 
     fn mock_config() -> Config {
@@ -884,6 +884,13 @@ mod tests {
             self.viewer
                 .clone()
                 .ok_or(ApiError::MissingData { context: "viewer" })
+        }
+
+        async fn fetch_issue_activity(
+            &self,
+            _issue_id: &str,
+        ) -> Result<(Vec<Comment>, Vec<IssueHistory>), ApiError> {
+            Ok((Vec::new(), Vec::new()))
         }
     }
 
