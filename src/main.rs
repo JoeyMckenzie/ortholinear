@@ -10,7 +10,7 @@ use api::{LinearApi, LinearClient};
 use app::{App, Mode};
 use config::Config;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -172,6 +172,9 @@ async fn run<C: LinearApi>(
                             app.load_issues().await?;
                         }
                         KeyCode::Char('x') => app.clear_issue_filter(),
+                        KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                            app.enter_search();
+                        }
                         KeyCode::Esc => app.clear_error(),
                         _ => {}
                     },
@@ -241,7 +244,25 @@ async fn run<C: LinearApi>(
                         KeyCode::Char(c) => app.filter_input(c),
                         _ => {}
                     },
-                    Mode::Search | Mode::SearchResults => {}
+                    Mode::Search => match key.code {
+                        KeyCode::Enter => {
+                            app.execute_search().await?;
+                        }
+                        KeyCode::Esc => app.cancel_search(),
+                        KeyCode::Backspace => app.search_backspace(),
+                        KeyCode::Char(c) => app.search_input(c),
+                        _ => {}
+                    },
+                    Mode::SearchResults => match key.code {
+                        KeyCode::Char('j') | KeyCode::Down => app.next_search_result(),
+                        KeyCode::Char('k') | KeyCode::Up => app.previous_search_result(),
+                        KeyCode::Enter => {
+                            app.enter_detail_view().await?;
+                        }
+                        KeyCode::Esc => app.exit_search_results(),
+                        KeyCode::Char('q') => break,
+                        _ => {}
+                    }
                 }
             }
         }
