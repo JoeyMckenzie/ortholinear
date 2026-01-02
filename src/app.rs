@@ -59,6 +59,8 @@ pub struct App<C: LinearApi> {
     pub detail_scroll_offset: u16,
     pub detail_content_height: u16,
     pub detail_viewport_height: u16,
+
+    pub pending_description_edit: Option<String>,
 }
 
 /// Parse a date string that may be in ISO 8601 format (e.g., "2024-12-30T00:00:00.000Z")
@@ -117,6 +119,7 @@ impl<C: LinearApi> App<C> {
             detail_scroll_offset: 0,
             detail_content_height: 0,
             detail_viewport_height: 0,
+            pending_description_edit: None,
         }
     }
 
@@ -386,6 +389,59 @@ impl<C: LinearApi> App<C> {
         self.status_filter.clear();
         self.mode = Mode::Normal;
         Ok(())
+    }
+
+    pub fn get_description_for_edit(&self) -> String {
+        // Use pending edit if available (retry case), otherwise use current description
+        if let Some(pending) = &self.pending_description_edit {
+            return pending.clone();
+        }
+        self.selected_issue()
+            .and_then(|i| i.description.clone())
+            .unwrap_or_default()
+    }
+
+    pub async fn update_selected_issue_description(
+        &mut self,
+        new_description: &str,
+    ) -> Result<(), AppError> {
+        let Some(issue_filtered) = self.filtered_issues.get(self.selected_issue_index) else {
+            return Ok(());
+        };
+        let issue_id = issue_filtered.item.id.clone();
+        let original_index = issue_filtered.original_index;
+
+        self.loading = true;
+
+        match self
+            .client
+            .update_issue_description(&issue_id, new_description)
+            .await
+        {
+            Ok(updated_issue) => {
+                if let Some(issue) = self.issues.get_mut(original_index) {
+                    *issue = updated_issue;
+                }
+                self.update_filtered_issues();
+                self.pending_description_edit = None;
+                self.error = None;
+            }
+            Err(e) => {
+                // Store the edit for retry
+                self.pending_description_edit = Some(new_description.to_string());
+                self.error = Some(format!(
+                    "Failed to save description: {} - press 'e' to retry with your changes",
+                    e
+                ));
+            }
+        }
+
+        self.loading = false;
+        Ok(())
+    }
+
+    pub fn clear_pending_description_edit(&mut self) {
+        self.pending_description_edit = None;
     }
 
     pub async fn select_team_from_filter(&mut self) -> Result<(), AppError> {
@@ -808,6 +864,16 @@ mod tests {
                 .find(|s| s.id == state_id)
                 .cloned()
                 .unwrap_or(issue.state);
+            Ok(issue)
+        }
+
+        async fn update_issue_description(
+            &self,
+            _issue_id: &str,
+            description: &str,
+        ) -> Result<Issue, ApiError> {
+            let mut issue = self.issues[0].clone();
+            issue.description = Some(description.to_string());
             Ok(issue)
         }
 

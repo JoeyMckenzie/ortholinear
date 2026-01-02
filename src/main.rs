@@ -17,6 +17,7 @@ use crossterm::{
 use error::AppError;
 use ratatui::prelude::*;
 use std::io::{self, stdout};
+use std::process::Command;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
@@ -41,6 +42,89 @@ async fn main() -> Result<(), AppError> {
     execute!(stdout(), LeaveAlternateScreen)?;
 
     result
+}
+
+fn get_editor() -> Option<String> {
+    std::env::var("EDITOR")
+        .ok()
+        .or_else(|| std::env::var("VISUAL").ok())
+        .or_else(|| {
+            // Check if common editors exist
+            for editor in ["vim", "nvim", "nano", "vi"] {
+                if Command::new("which")
+                    .arg(editor)
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false)
+                {
+                    return Some(editor.to_string());
+                }
+            }
+            None
+        })
+}
+
+async fn edit_description<C: LinearApi>(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App<C>,
+) -> Result<(), AppError> {
+    let Some(issue) = app.selected_issue() else {
+        return Ok(());
+    };
+
+    let issue_id = issue.identifier.clone();
+    let original_description = app.get_description_for_edit();
+
+    // Get editor
+    let Some(editor) = get_editor() else {
+        app.error = Some("No editor found. Set $EDITOR environment variable.".to_string());
+        return Ok(());
+    };
+
+    // Create temp file
+    let temp_path = std::env::temp_dir().join(format!("ortholinear-{}.md", issue_id));
+    std::fs::write(&temp_path, &original_description)?;
+
+    // Suspend TUI
+    disable_raw_mode()?;
+    execute!(stdout(), LeaveAlternateScreen)?;
+
+    // Run editor
+    let status = Command::new(&editor).arg(&temp_path).status();
+
+    // Resume TUI
+    enable_raw_mode()?;
+    execute!(stdout(), EnterAlternateScreen)?;
+    terminal.clear()?;
+
+    // Check editor exit status
+    match status {
+        Ok(exit_status) if exit_status.success() => {
+            // Read edited content
+            let new_description = std::fs::read_to_string(&temp_path).unwrap_or_default();
+
+            // Clean up temp file
+            let _ = std::fs::remove_file(&temp_path);
+
+            // Only update if content changed
+            if new_description != original_description {
+                app.update_selected_issue_description(&new_description).await?;
+            } else {
+                // Clear any pending edit since user didn't change anything
+                app.clear_pending_description_edit();
+            }
+        }
+        Ok(_) => {
+            // Editor exited with non-zero, treat as cancelled
+            let _ = std::fs::remove_file(&temp_path);
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&temp_path);
+            app.error = Some(format!("Failed to run editor '{}': {}", editor, e));
+        }
+    }
+
+    Ok(())
 }
 
 async fn run<C: LinearApi>(
@@ -96,6 +180,9 @@ async fn run<C: LinearApi>(
                             if let Err(e) = app.open_selected_issue() {
                                 app.error = Some(format!("Failed to open URL: {}", e));
                             }
+                        }
+                        KeyCode::Char('e') => {
+                            edit_description(terminal, app).await?;
                         }
                         KeyCode::Char('j') | KeyCode::Down => app.scroll_detail_down(),
                         KeyCode::Char('k') | KeyCode::Up => app.scroll_detail_up(),

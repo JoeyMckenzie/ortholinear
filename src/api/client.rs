@@ -266,6 +266,58 @@ impl LinearApi for LinearClient {
             .ok_or(ApiError::MissingData { context: "issue" })
     }
 
+    async fn update_issue_description(
+        &self,
+        issue_id: &str,
+        description: &str,
+    ) -> Result<Issue, ApiError> {
+        let query = r#"
+            mutation UpdateIssueDescription($issueId: String!, $description: String!) {
+                issueUpdate(id: $issueId, input: { description: $description }) {
+                    success
+                    issue {
+                        id
+                        identifier
+                        title
+                        description
+                        url
+                        state {
+                            id
+                            name
+                            color
+                            type
+                        }
+                        assignee {
+                            id
+                            name
+                        }
+                        priority
+                        project {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let variables = json!({
+            "issueId": issue_id,
+            "description": description
+        });
+
+        let response: IssueUpdateResponse = self.query(query, Some(variables)).await?;
+
+        if !response.issue_update.success {
+            return Err(ApiError::UpdateFailed);
+        }
+
+        response
+            .issue_update
+            .issue
+            .ok_or(ApiError::MissingData { context: "issue" })
+    }
+
     async fn fetch_viewer(&self) -> Result<User, ApiError> {
         let query = r#"
             query Viewer {

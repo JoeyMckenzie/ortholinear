@@ -344,6 +344,8 @@ fn render_footer<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: Rect) 
             Span::styled(": scroll  ", Style::default().fg(Color::DarkGray)),
             Span::styled("g/G", Style::default().fg(Color::Yellow)),
             Span::styled(": top/bottom  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("e", Style::default().fg(Color::Yellow)),
+            Span::styled(": edit  ", Style::default().fg(Color::DarkGray)),
             Span::styled("o", Style::default().fg(Color::Yellow)),
             Span::styled(": open  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Esc/Enter/q", Style::default().fg(Color::Yellow)),

@@ -32,5 +32,10 @@ pub trait LinearApi: Send + Sync {
         issue_id: &str,
         state_id: &str,
     ) -> impl std::future::Future<Output = Result<Issue, ApiError>> + Send;
+    fn update_issue_description(
+        &self,
+        issue_id: &str,
+        description: &str,
+    ) -> impl std::future::Future<Output = Result<Issue, ApiError>> + Send;
     fn fetch_viewer(&self) -> impl std::future::Future<Output = Result<User, ApiError>> + Send;
 }
