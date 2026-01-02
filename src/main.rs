@@ -262,7 +262,7 @@ async fn run<C: LinearApi>(
                         KeyCode::Esc => app.exit_search_results(),
                         KeyCode::Char('q') => break,
                         _ => {}
-                    }
+                    },
                 }
             }
         }

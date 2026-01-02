@@ -376,18 +376,20 @@ fn build_detail_content<C: LinearApi>(issue: &Issue, app: &App<C>) -> Vec<Line<'
 
 fn render_timeline_event(event: &TimelineEvent) -> Vec<Line<'static>> {
     match event {
-        TimelineEvent::Comment { user, body, created_at } => {
-            let mut lines = vec![
-                Line::from(vec![
-                    Span::styled(" ", Style::default().fg(Color::White)),
-                    Span::styled(user.clone(), Style::default().bold()),
-                    Span::styled(" · ", Style::default().fg(Color::DarkGray)),
-                    Span::styled(
-                        format_timeline_date(created_at),
-                        Style::default().fg(Color::DarkGray),
-                    ),
-                ]),
-            ];
+        TimelineEvent::Comment {
+            user,
+            body,
+            created_at,
+        } => {
+            let mut lines = vec![Line::from(vec![
+                Span::styled(" ", Style::default().fg(Color::White)),
+                Span::styled(user.clone(), Style::default().bold()),
+                Span::styled(" · ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format_timeline_date(created_at),
+                    Style::default().fg(Color::DarkGray),
+                ),
+            ])];
             // Render comment body as markdown
             let body_lines = render_markdown(body);
             for line in body_lines {
@@ -398,7 +400,12 @@ fn render_timeline_event(event: &TimelineEvent) -> Vec<Line<'static>> {
             }
             lines
         }
-        TimelineEvent::StatusChange { actor, from, to, created_at } => {
+        TimelineEvent::StatusChange {
+            actor,
+            from,
+            to,
+            created_at,
+        } => {
             vec![
                 Line::from(vec![
                     Span::styled(" ", Style::default().fg(Color::Yellow)),
@@ -417,7 +424,12 @@ fn render_timeline_event(event: &TimelineEvent) -> Vec<Line<'static>> {
                 ]),
             ]
         }
-        TimelineEvent::AssigneeChange { actor, from, to, created_at } => {
+        TimelineEvent::AssigneeChange {
+            actor,
+            from,
+            to,
+            created_at,
+        } => {
             let from_name = from.clone().unwrap_or_else(|| "Unassigned".to_string());
             let to_name = to.clone().unwrap_or_else(|| "Unassigned".to_string());
             vec![
@@ -837,10 +849,9 @@ fn format_timeline_date(date_str: &str) -> String {
     use chrono::NaiveDateTime;
 
     // Try parsing ISO 8601 format
-    if let Ok(dt) = NaiveDateTime::parse_from_str(
-        &date_str.replace('Z', ""),
-        "%Y-%m-%dT%H:%M:%S%.f",
-    ) {
+    if let Ok(dt) =
+        NaiveDateTime::parse_from_str(&date_str.replace('Z', ""), "%Y-%m-%dT%H:%M:%S%.f")
+    {
         return dt.format("%m-%d-%Y %H:%M").to_string();
     }
 

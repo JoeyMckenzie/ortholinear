@@ -107,7 +107,10 @@ pub fn merge_timeline_events(
     // Convert comments
     for comment in comments {
         events.push(TimelineEvent::Comment {
-            user: comment.user.map(|u| u.name).unwrap_or_else(|| "Unknown".to_string()),
+            user: comment
+                .user
+                .map(|u| u.name)
+                .unwrap_or_else(|| "Unknown".to_string()),
             body: comment.body,
             created_at: comment.created_at,
         });
@@ -115,12 +118,22 @@ pub fn merge_timeline_events(
 
     // Convert history (only status and assignee changes)
     for entry in history {
-        let actor_name = entry.actor.as_ref().map(|a| a.name.clone()).unwrap_or_else(|| "System".to_string());
+        let actor_name = entry
+            .actor
+            .as_ref()
+            .map(|a| a.name.clone())
+            .unwrap_or_else(|| "System".to_string());
 
         // Status change
         if entry.from_state.is_some() || entry.to_state.is_some() {
-            let from = entry.from_state.map(|s| s.name).unwrap_or_else(|| "None".to_string());
-            let to = entry.to_state.map(|s| s.name).unwrap_or_else(|| "None".to_string());
+            let from = entry
+                .from_state
+                .map(|s| s.name)
+                .unwrap_or_else(|| "None".to_string());
+            let to = entry
+                .to_state
+                .map(|s| s.name)
+                .unwrap_or_else(|| "None".to_string());
             events.push(TimelineEvent::StatusChange {
                 actor: actor_name.clone(),
                 from,
@@ -903,8 +916,8 @@ impl<C: LinearApi> App<C> {
 
     pub fn next_search_result(&mut self) {
         if !self.search_results.is_empty() {
-            self.selected_search_index = (self.selected_search_index + 1)
-                .min(self.search_results.len().saturating_sub(1));
+            self.selected_search_index =
+                (self.selected_search_index + 1).min(self.search_results.len().saturating_sub(1));
         }
     }
 
@@ -1789,7 +1802,9 @@ mod tests {
         assert_eq!(events.len(), 2);
         // Should be sorted oldest first
         assert!(matches!(&events[0], super::TimelineEvent::Comment { user, .. } if user == "Bob"));
-        assert!(matches!(&events[1], super::TimelineEvent::Comment { user, .. } if user == "Alice"));
+        assert!(
+            matches!(&events[1], super::TimelineEvent::Comment { user, .. } if user == "Alice")
+        );
     }
 
     #[test]
@@ -1865,7 +1880,8 @@ mod tests {
     fn merge_timeline_events_handles_empty_inputs() {
         use crate::api::{Comment, IssueHistory};
 
-        let events = super::merge_timeline_events(Vec::<Comment>::new(), Vec::<IssueHistory>::new());
+        let events =
+            super::merge_timeline_events(Vec::<Comment>::new(), Vec::<IssueHistory>::new());
 
         assert!(events.is_empty());
     }
@@ -2029,7 +2045,10 @@ mod tests {
         app.search_results = app.client.issues.clone();
         app.selected_search_index = app.search_results.len().saturating_sub(1);
         app.next_search_result();
-        assert_eq!(app.selected_search_index, app.search_results.len().saturating_sub(1));
+        assert_eq!(
+            app.selected_search_index,
+            app.search_results.len().saturating_sub(1)
+        );
     }
 
     #[test]

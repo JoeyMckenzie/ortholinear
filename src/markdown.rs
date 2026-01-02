@@ -555,10 +555,7 @@ mod tests {
     #[test]
     fn text_around_mention_preserved() {
         let result = render_markdown("Before @user after");
-        let spans: Vec<_> = result
-            .iter()
-            .flat_map(|line| line.spans.iter())
-            .collect();
+        let spans: Vec<_> = result.iter().flat_map(|line| line.spans.iter()).collect();
         // Should have "Before ", "@user", " after" as separate spans
         let has_before = spans.iter().any(|s| s.content.contains("Before"));
         let has_mention = spans.iter().any(|s| s.content.contains("@user"));
