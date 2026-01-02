@@ -335,7 +335,7 @@ impl LinearApi for LinearClient {
         let query = r#"
             query IssueActivity($issueId: String!) {
                 issue(id: $issueId) {
-                    comments {
+                    comments(first: 50) {
                         nodes {
                             id
                             body
