@@ -60,7 +60,6 @@ impl Cycle {
         let name = self.display_name();
         match (&self.starts_at, &self.ends_at) {
             (Some(start), Some(end)) => {
-                // Format dates as MM/DD
                 let start_formatted = format_date_short(start);
                 let end_formatted = format_date_short(end);
                 format!("{} ({} - {})", name, start_formatted, end_formatted)
@@ -72,8 +71,15 @@ impl Cycle {
 
 fn format_date_short(date_str: &str) -> String {
     use chrono::NaiveDate;
-    if let Ok(date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-        date.format("%m/%d").to_string()
+
+    let date_part = if date_str.len() >= 10 {
+        &date_str[..10]
+    } else {
+        date_str
+    };
+
+    if let Ok(date) = NaiveDate::parse_from_str(date_part, "%Y-%m-%d") {
+        date.format("%m-%d-%Y").to_string()
     } else {
         date_str.to_string()
     }

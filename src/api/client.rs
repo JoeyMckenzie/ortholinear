@@ -32,6 +32,7 @@ impl LinearClient {
         let response = self
             .client
             .post(LINEAR_API_URL)
+            .header("User-Agent", "ortholinear/0.1.0")
             .header("Authorization", &self.api_key)
             .header("Content-Type", "application/json")
             .json(&body)
