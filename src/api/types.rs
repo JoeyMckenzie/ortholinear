@@ -189,3 +189,36 @@ pub struct IssueWithActivity {
     pub comments: Connection<Comment>,
     pub history: Connection<IssueHistory>,
 }
+
+// NOTE: Currently tracking essential activity types only (comments, status, assignee).
+// Future expansion may include: priority changes, cycle/project changes, labels, estimates, etc.
+#[derive(Debug, Clone)]
+pub enum TimelineEvent {
+    Comment {
+        user: String,
+        body: String,
+        created_at: String,
+    },
+    StatusChange {
+        actor: String,
+        from: String,
+        to: String,
+        created_at: String,
+    },
+    AssigneeChange {
+        actor: String,
+        from: Option<String>,
+        to: Option<String>,
+        created_at: String,
+    },
+}
+
+impl TimelineEvent {
+    pub fn created_at(&self) -> &str {
+        match self {
+            TimelineEvent::Comment { created_at, .. } => created_at,
+            TimelineEvent::StatusChange { created_at, .. } => created_at,
+            TimelineEvent::AssigneeChange { created_at, .. } => created_at,
+        }
+    }
+}
