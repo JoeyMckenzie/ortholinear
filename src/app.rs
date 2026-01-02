@@ -1608,4 +1608,137 @@ mod tests {
         app.backlog_mode = false;
         assert!(!app.backlog_mode);
     }
+
+    #[test]
+    fn merge_timeline_events_sorts_by_date() {
+        use crate::api::{Comment, IssueHistory};
+
+        let comments = vec![
+            Comment {
+                id: "c1".to_string(),
+                body: "Second comment".to_string(),
+                created_at: "2024-01-02T10:00:00Z".to_string(),
+                user: Some(User {
+                    id: "u1".to_string(),
+                    name: "Alice".to_string(),
+                }),
+            },
+            Comment {
+                id: "c2".to_string(),
+                body: "First comment".to_string(),
+                created_at: "2024-01-01T10:00:00Z".to_string(),
+                user: Some(User {
+                    id: "u2".to_string(),
+                    name: "Bob".to_string(),
+                }),
+            },
+        ];
+
+        let history = vec![];
+
+        let events = super::merge_timeline_events(comments, history);
+
+        assert_eq!(events.len(), 2);
+        // Should be sorted oldest first
+        assert!(matches!(&events[0], super::TimelineEvent::Comment { user, .. } if user == "Bob"));
+        assert!(matches!(&events[1], super::TimelineEvent::Comment { user, .. } if user == "Alice"));
+    }
+
+    #[test]
+    fn merge_timeline_events_includes_status_changes() {
+        use crate::api::{Comment, IssueHistory};
+
+        let comments = vec![];
+        let history = vec![IssueHistory {
+            id: "h1".to_string(),
+            created_at: "2024-01-01T10:00:00Z".to_string(),
+            actor: Some(User {
+                id: "u1".to_string(),
+                name: "Alice".to_string(),
+            }),
+            from_state: Some(WorkflowState {
+                id: "s1".to_string(),
+                name: "Todo".to_string(),
+                color: "#ccc".to_string(),
+                state_type: "unstarted".to_string(),
+            }),
+            to_state: Some(WorkflowState {
+                id: "s2".to_string(),
+                name: "In Progress".to_string(),
+                color: "#00f".to_string(),
+                state_type: "started".to_string(),
+            }),
+            from_assignee: None,
+            to_assignee: None,
+        }];
+
+        let events = super::merge_timeline_events(comments, history);
+
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            &events[0],
+            super::TimelineEvent::StatusChange { actor, from, to, .. }
+            if actor == "Alice" && from == "Todo" && to == "In Progress"
+        ));
+    }
+
+    #[test]
+    fn merge_timeline_events_includes_assignee_changes() {
+        use crate::api::{Comment, IssueHistory};
+
+        let comments = vec![];
+        let history = vec![IssueHistory {
+            id: "h1".to_string(),
+            created_at: "2024-01-01T10:00:00Z".to_string(),
+            actor: Some(User {
+                id: "u1".to_string(),
+                name: "Alice".to_string(),
+            }),
+            from_state: None,
+            to_state: None,
+            from_assignee: None,
+            to_assignee: Some(User {
+                id: "u2".to_string(),
+                name: "Bob".to_string(),
+            }),
+        }];
+
+        let events = super::merge_timeline_events(comments, history);
+
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            &events[0],
+            super::TimelineEvent::AssigneeChange { actor, from, to, .. }
+            if actor == "Alice" && from.is_none() && to.as_deref() == Some("Bob")
+        ));
+    }
+
+    #[test]
+    fn merge_timeline_events_handles_empty_inputs() {
+        use crate::api::{Comment, IssueHistory};
+
+        let events = super::merge_timeline_events(Vec::<Comment>::new(), Vec::<IssueHistory>::new());
+
+        assert!(events.is_empty());
+    }
+
+    #[tokio::test]
+    async fn exit_detail_view_clears_timeline() {
+        let mut app = create_test_app();
+        app.issues = app.client.issues.clone();
+        app.filtered_issues = crate::fuzzy::filter_items(&app.issues, "", |i| i.title.clone());
+        app.enter_detail_view().await.unwrap();
+
+        // Manually add some events to simulate loaded state
+        app.timeline_events.push(super::TimelineEvent::Comment {
+            user: "Test".to_string(),
+            body: "Test".to_string(),
+            created_at: "2024-01-01".to_string(),
+        });
+
+        app.exit_detail_view();
+
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(app.timeline_events.is_empty());
+    }
 }
