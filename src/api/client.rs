@@ -188,7 +188,7 @@ impl LinearApi for LinearClient {
             filter["assignee"] = json!({ "id": { "eq": aid } });
         }
         filter["state"] = json!({ "type": { "eq": "backlog" } });
-        filter["cycle"] = json!({ "id": { "isNull": true } });
+        filter["cycle"] = json!({ "null": true });
 
         let variables = json!({ "filter": filter });
         let response: IssuesResponse = self.query(query, Some(variables)).await?;
