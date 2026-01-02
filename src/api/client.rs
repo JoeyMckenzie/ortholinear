@@ -150,6 +150,51 @@ impl LinearApi for LinearClient {
         Ok(response.issues.nodes)
     }
 
+    async fn fetch_backlog_issues(
+        &self,
+        team_id: &str,
+        assignee_id: Option<&str>,
+    ) -> Result<Vec<Issue>> {
+        let query = r#"
+            query BacklogIssues($filter: IssueFilter) {
+                issues(first: 50, filter: $filter, orderBy: updatedAt) {
+                    nodes {
+                        id
+                        identifier
+                        title
+                        description
+                        url
+                        state {
+                            id
+                            name
+                            color
+                            type
+                        }
+                        assignee {
+                            id
+                            name
+                        }
+                        priority
+                        project {
+                            id
+                            name
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let mut filter = json!({ "team": { "id": { "eq": team_id } } });
+        if let Some(aid) = assignee_id {
+            filter["assignee"] = json!({ "id": { "eq": aid } });
+        }
+        filter["cycle"] = json!({ "id": { "isNull": true } });
+
+        let variables = json!({ "filter": filter });
+        let response: IssuesResponse = self.query(query, Some(variables)).await?;
+        Ok(response.issues.nodes)
+    }
+
     async fn fetch_workflow_states(&self, team_id: &str) -> Result<Vec<WorkflowState>> {
         let query = r#"
             query WorkflowStates($teamId: String!) {

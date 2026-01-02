@@ -729,6 +729,14 @@ mod tests {
             Ok(self.issues.clone())
         }
 
+        async fn fetch_backlog_issues(
+            &self,
+            _team_id: &str,
+            _assignee_id: Option<&str>,
+        ) -> anyhow::Result<Vec<Issue>> {
+            Ok(self.issues.clone())
+        }
+
         async fn fetch_workflow_states(
             &self,
             _team_id: &str,
