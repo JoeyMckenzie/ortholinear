@@ -302,9 +302,9 @@ mod tests {
     fn inline_code_has_green_color_and_backticks() {
         let result = render_markdown("Use `code` here");
         let found_code = result.iter().any(|line| {
-            line.spans.iter().any(|span| {
-                span.style.fg == Some(Color::Green) && span.content.contains("`code`")
-            })
+            line.spans
+                .iter()
+                .any(|span| span.style.fg == Some(Color::Green) && span.content.contains("`code`"))
         });
         assert!(found_code);
     }

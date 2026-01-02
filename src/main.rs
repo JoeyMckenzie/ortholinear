@@ -42,8 +42,10 @@ async fn main() -> Result<()> {
     result
 }
 
-async fn run<C: LinearApi>(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App<C>) -> Result<()> {
-
+async fn run<C: LinearApi>(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut App<C>,
+) -> Result<()> {
     app.init().await?;
 
     loop {

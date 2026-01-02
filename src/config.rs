@@ -98,19 +98,17 @@ impl Config {
 
         // Determine API key: env var takes priority, then config file
         let config_api_key = config_file.as_ref().and_then(|cf| cf.api_key.clone());
-        let api_key = env_api_key
-            .or(config_api_key)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "No API key found.\n\n\
+        let api_key = env_api_key.or(config_api_key).ok_or_else(|| {
+            anyhow::anyhow!(
+                "No API key found.\n\n\
                     To authenticate, either:\n\
                     1. Set the {} environment variable, or\n\
                     2. Create {:?} with:\n\n\
                     api_key = \"lin_api_...\"",
-                    ENV_VAR_NAME,
-                    config_path
-                )
-            })?;
+                ENV_VAR_NAME,
+                config_path
+            )
+        })?;
 
         // Parse defaults from config file (if it exists)
         let defaults_config = config_file
