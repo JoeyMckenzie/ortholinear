@@ -635,18 +635,49 @@ impl<C: LinearApi> App<C> {
             .map(|f| &f.item)
     }
 
+    pub fn current_issue(&self) -> Option<&Issue> {
+        if self.in_search_context {
+            self.selected_search_result()
+        } else {
+            self.selected_issue()
+        }
+    }
+
     pub async fn enter_detail_view(&mut self) -> Result<(), AppError> {
-        if self.selected_issue().is_some() {
+        let has_issue = if self.in_search_context {
+            self.selected_search_result().is_some()
+        } else {
+            self.selected_issue().is_some()
+        };
+
+        if has_issue {
             self.mode = Mode::DetailView;
             self.detail_scroll_offset = 0;
-            self.load_timeline().await?;
+
+            // Load timeline if we have an issue and cache doesn't have it
+            let issue_id = if self.in_search_context {
+                self.selected_search_result().map(|i| i.id.clone())
+            } else {
+                self.selected_issue().map(|i| i.id.clone())
+            };
+
+            if let Some(id) = issue_id {
+                if !self.timeline_cache.contains_key(&id) {
+                    self.load_timeline().await?;
+                } else {
+                    self.load_timeline_from_cache();
+                }
+            }
         }
         Ok(())
     }
 
     pub fn exit_detail_view(&mut self) {
-        self.mode = Mode::Normal;
-        // Keep timeline data so it shows in preview pane
+        if self.in_search_context {
+            self.mode = Mode::SearchResults;
+        } else {
+            self.mode = Mode::Normal;
+        }
     }
 
     pub fn scroll_detail_down(&mut self) {
@@ -2017,5 +2048,27 @@ mod tests {
         app.selected_search_index = 0;
         app.previous_search_result();
         assert_eq!(app.selected_search_index, 0);
+    }
+
+    #[tokio::test]
+    async fn enter_detail_view_from_search_results() {
+        let mut app = create_test_app();
+        app.mode = Mode::SearchResults;
+        app.in_search_context = true;
+        app.search_results = app.client.issues.clone();
+        app.selected_search_index = 0;
+        app.enter_detail_view().await.unwrap();
+        assert_eq!(app.mode, Mode::DetailView);
+        assert!(app.in_search_context); // Should remain true
+    }
+
+    #[test]
+    fn exit_detail_view_returns_to_search_results() {
+        let mut app = create_test_app();
+        app.mode = Mode::DetailView;
+        app.in_search_context = true;
+        app.exit_detail_view();
+        assert_eq!(app.mode, Mode::SearchResults);
+        assert!(app.in_search_context);
     }
 }
