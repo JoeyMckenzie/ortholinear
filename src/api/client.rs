@@ -327,4 +327,66 @@ impl LinearApi for LinearClient {
         let response: ViewerResponse = self.query(query, None).await?;
         Ok(response.viewer)
     }
+
+    async fn fetch_issue_activity(
+        &self,
+        issue_id: &str,
+    ) -> Result<(Vec<Comment>, Vec<IssueHistory>), ApiError> {
+        let query = r#"
+            query IssueActivity($issueId: String!) {
+                issue(id: $issueId) {
+                    comments {
+                        nodes {
+                            id
+                            body
+                            createdAt
+                            user {
+                                id
+                                name
+                            }
+                        }
+                    }
+                    history(first: 50) {
+                        nodes {
+                            id
+                            createdAt
+                            actor {
+                                id
+                                name
+                            }
+                            fromState {
+                                id
+                                name
+                                color
+                                type
+                            }
+                            toState {
+                                id
+                                name
+                                color
+                                type
+                            }
+                            fromAssignee {
+                                id
+                                name
+                            }
+                            toAssignee {
+                                id
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let variables = json!({ "issueId": issue_id });
+        let response: IssueActivityResponse = self.query(query, Some(variables)).await?;
+
+        let issue = response
+            .issue
+            .ok_or(ApiError::MissingData { context: "issue" })?;
+
+        Ok((issue.comments.nodes, issue.history.nodes))
+    }
 }
