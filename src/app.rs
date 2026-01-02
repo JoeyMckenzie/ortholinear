@@ -1,4 +1,4 @@
-use crate::api::{Cycle, Issue, LinearApi, Team, User, WorkflowState};
+use crate::api::{Cycle, Issue, LinearApi, Team, TimelineEvent, User, WorkflowState};
 use crate::config::{AssigneeDefault, Config, CycleDefault};
 use crate::error::AppError;
 use crate::fuzzy::{filter_items, FilteredItem};
@@ -61,6 +61,8 @@ pub struct App<C: LinearApi> {
     pub detail_viewport_height: u16,
 
     pub pending_description_edit: Option<String>,
+    pub timeline_events: Vec<TimelineEvent>,
+    pub timeline_loading: bool,
 }
 
 /// Parse a date string that may be in ISO 8601 format (e.g., "2024-12-30T00:00:00.000Z")
@@ -120,6 +122,8 @@ impl<C: LinearApi> App<C> {
             detail_content_height: 0,
             detail_viewport_height: 0,
             pending_description_edit: None,
+            timeline_events: Vec::new(),
+            timeline_loading: false,
         }
     }
 
