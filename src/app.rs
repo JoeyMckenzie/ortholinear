@@ -1421,7 +1421,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_toggle_backlog_mode() {
-        let mut app = App::new(MockClient::new(), mock_config());
+        let mut app = create_test_app();
         app.init().await.unwrap();
 
         // Initially in cycle mode
