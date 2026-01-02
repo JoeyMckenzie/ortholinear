@@ -518,7 +518,7 @@ impl<C: LinearApi> App<C> {
     }
 
     pub async fn load_timeline(&mut self) -> Result<(), AppError> {
-        let Some(issue) = self.selected_issue() else {
+        let Some(issue) = self.current_issue() else {
             return Ok(());
         };
 
@@ -560,7 +560,7 @@ impl<C: LinearApi> App<C> {
 
     /// Load timeline from cache if available for the current issue
     fn load_timeline_from_cache(&mut self) {
-        if let Some(issue) = self.selected_issue() {
+        if let Some(issue) = self.current_issue() {
             if let Some(cached) = self.timeline_cache.get(&issue.id) {
                 self.timeline_events = cached.clone();
                 return;

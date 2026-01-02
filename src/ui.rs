@@ -239,7 +239,7 @@ fn render_issue_detail<C: LinearApi>(frame: &mut Frame, app: &mut App<C>, area: 
     let inner_area = block.inner(area);
     frame.render_widget(block, area);
 
-    if let Some(issue) = app.selected_issue() {
+    if let Some(issue) = app.current_issue() {
         let content = build_detail_content(issue, app);
         let content_height = content.len() as u16;
 
