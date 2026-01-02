@@ -1,10 +1,24 @@
-use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::{env, fs};
 
 const ENV_VAR_NAME: &str = "LINEAR_API_KEY";
 const CONFIG_FILE_NAME: &str = "config.toml";
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("No API key found.\n\nTo authenticate, either:\n1. Set the LINEAR_API_KEY environment variable, or\n2. Add to {}: api_key = \"lin_api_...\"", .config_path.display())]
+    MissingApiKey { config_path: PathBuf },
+
+    #[error("Could not determine config directory. Ensure HOME or XDG_CONFIG_HOME is set.")]
+    ConfigDirNotFound,
+
+    #[error("Failed to read config file at {}: {source}", .path.display())]
+    FileRead { path: PathBuf, source: std::io::Error },
+
+    #[error("Failed to parse config file at {}: {source}", .path.display())]
+    Parse { path: PathBuf, source: toml::de::Error },
+}
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum CycleDefault {
@@ -81,36 +95,24 @@ fn parse_view_mode(value: Option<&str>) -> ViewMode {
     match value {
         None | Some("cycle") => ViewMode::Cycle,
         Some("backlog") => ViewMode::Backlog,
-        Some(_) => ViewMode::Cycle, // default for unknown values
+        Some(_) => ViewMode::Cycle,
     }
 }
 
 impl Config {
-    pub fn load() -> Result<Self> {
-        // Try to get API key from environment variable
+    pub fn load() -> Result<Self, ConfigError> {
         let env_api_key = env::var(ENV_VAR_NAME).ok().filter(|s| !s.is_empty());
-
-        // Always try to read config file for defaults (and api_key if not in env)
         let config_path = Self::config_file_path()?;
-        let config_file = fs::read_to_string(&config_path)
-            .ok()
-            .and_then(|contents| toml::from_str::<ConfigFile>(&contents).ok());
 
-        // Determine API key: env var takes priority, then config file
+        let config_file = Self::read_config_file(&config_path).ok();
+
         let config_api_key = config_file.as_ref().and_then(|cf| cf.api_key.clone());
-        let api_key = env_api_key.or(config_api_key).ok_or_else(|| {
-            anyhow::anyhow!(
-                "No API key found.\n\n\
-                    To authenticate, either:\n\
-                    1. Set the {} environment variable, or\n\
-                    2. Create {:?} with:\n\n\
-                    api_key = \"lin_api_...\"",
-                ENV_VAR_NAME,
-                config_path
-            )
-        })?;
+        let api_key = env_api_key
+            .or(config_api_key)
+            .ok_or_else(|| ConfigError::MissingApiKey {
+                config_path: config_path.clone(),
+            })?;
 
-        // Parse defaults from config file (if it exists)
         let defaults_config = config_file
             .and_then(|cf| cf.defaults)
             .map(|defaults| DefaultsConfig {
@@ -127,22 +129,34 @@ impl Config {
         })
     }
 
-    fn config_file_path() -> Result<PathBuf> {
+    fn config_file_path() -> Result<PathBuf, ConfigError> {
         let config_dir = if let Ok(xdg_config) = env::var("XDG_CONFIG_HOME") {
             if !xdg_config.is_empty() {
                 PathBuf::from(xdg_config).join("ortholinear")
             } else {
                 dirs::config_dir()
-                    .context("Could not determine config directory")?
+                    .ok_or(ConfigError::ConfigDirNotFound)?
                     .join("ortholinear")
             }
         } else {
             dirs::config_dir()
-                .context("Could not determine config directory")?
+                .ok_or(ConfigError::ConfigDirNotFound)?
                 .join("ortholinear")
         };
 
         Ok(config_dir.join(CONFIG_FILE_NAME))
+    }
+
+    fn read_config_file(path: &PathBuf) -> Result<ConfigFile, ConfigError> {
+        let contents = fs::read_to_string(path).map_err(|source| ConfigError::FileRead {
+            path: path.clone(),
+            source,
+        })?;
+
+        toml::from_str(&contents).map_err(|source| ConfigError::Parse {
+            path: path.clone(),
+            source,
+        })
     }
 }
 
@@ -152,23 +166,15 @@ mod tests {
     use std::io::Write;
     use tempfile::TempDir;
 
-    fn load_from_file(config_dir: &std::path::Path) -> Result<Config> {
+    fn load_from_file(config_dir: &std::path::Path) -> Result<Config, ConfigError> {
         let config_path = config_dir.join(CONFIG_FILE_NAME);
-        let contents = fs::read_to_string(&config_path).with_context(|| {
-            format!(
-                "Could not read config file at {:?}\n\n\
-                To authenticate, either:\n\
-                1. Set the {} environment variable, or\n\
-                2. Create {:?} with:\n\n\
-                api_key = \"lin_api_...\"",
-                config_path, ENV_VAR_NAME, config_path
-            )
-        })?;
+        let config_file = Config::read_config_file(&config_path)?;
 
-        let config_file: ConfigFile = toml::from_str(&contents)
-            .with_context(|| format!("Failed to parse config file at {:?}", config_path))?;
-
-        let api_key = config_file.api_key.context("No api_key in config file")?;
+        let api_key = config_file
+            .api_key
+            .ok_or_else(|| ConfigError::MissingApiKey {
+                config_path: config_path.clone(),
+            })?;
 
         let defaults = config_file.defaults.unwrap_or_default();
         let defaults_config = DefaultsConfig {
@@ -186,10 +192,8 @@ mod tests {
 
     #[test]
     fn loads_from_env_var() {
-        // Use a unique env var name to avoid conflicts
         let test_key = "test_api_key_12345";
 
-        // Temporarily set the env var by testing the logic directly
         let result = if !test_key.is_empty() {
             Some(Config {
                 api_key: test_key.to_string(),
@@ -206,10 +210,7 @@ mod tests {
     #[test]
     fn empty_env_var_falls_through() {
         let empty_key = "";
-
-        // Simulate the check in Config::load
         let should_fallback = empty_key.is_empty();
-
         assert!(should_fallback);
     }
 
@@ -250,8 +251,7 @@ mod tests {
         let result = load_from_file(temp_dir.path());
 
         assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Could not read config file"));
+        assert!(matches!(result.unwrap_err(), ConfigError::FileRead { .. }));
     }
 
     #[test]
@@ -266,8 +266,7 @@ mod tests {
         let result = load_from_file(temp_dir.path());
 
         assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("Failed to parse config file"));
+        assert!(matches!(result.unwrap_err(), ConfigError::Parse { .. }));
     }
 
     #[test]
@@ -282,6 +281,10 @@ mod tests {
         let result = load_from_file(temp_dir.path());
 
         assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            ConfigError::MissingApiKey { .. }
+        ));
     }
 
     #[test]
@@ -399,7 +402,6 @@ assignee = "Joey McKenzie"
 
     #[test]
     fn defaults_only_config_parses() {
-        // Simulates: api_key from env var, config file only has defaults section
         let config_content = r#"
 [defaults]
 team = "Fundraising"
@@ -409,16 +411,13 @@ assignee = "me"
 
         let config_file: ConfigFile = toml::from_str(config_content).unwrap();
 
-        // api_key should be None (will come from env var)
         assert!(config_file.api_key.is_none());
 
-        // defaults should be parsed
         let defaults = config_file.defaults.unwrap();
         assert_eq!(defaults.team, Some("Fundraising".to_string()));
         assert_eq!(defaults.cycle, Some("current".to_string()));
         assert_eq!(defaults.assignee, Some("me".to_string()));
 
-        // Parse into final config defaults
         let defaults_config = DefaultsConfig {
             team: defaults.team,
             cycle: parse_cycle_default(defaults.cycle.as_deref()),

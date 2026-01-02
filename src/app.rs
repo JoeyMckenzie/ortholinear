@@ -1,8 +1,11 @@
 use crate::api::{Cycle, Issue, LinearApi, Team, User, WorkflowState};
 use crate::config::{AssigneeDefault, Config, CycleDefault};
+use crate::error::AppError;
 use crate::fuzzy::{filter_items, FilteredItem};
-use anyhow::Result;
 use chrono::NaiveDate;
+
+#[cfg(test)]
+use crate::api::ApiError;
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Mode {
@@ -117,7 +120,7 @@ impl<C: LinearApi> App<C> {
         }
     }
 
-    pub async fn init(&mut self) -> Result<()> {
+    pub async fn init(&mut self) -> Result<(), AppError> {
         self.loading = true;
         self.error = None;
 
@@ -163,7 +166,7 @@ impl<C: LinearApi> App<C> {
         Ok(())
     }
 
-    pub async fn load_team_data(&mut self) -> Result<()> {
+    pub async fn load_team_data(&mut self) -> Result<(), AppError> {
         let Some(team) = &self.current_team else {
             return Ok(());
         };
@@ -203,7 +206,7 @@ impl<C: LinearApi> App<C> {
         Ok(())
     }
 
-    pub async fn load_issues(&mut self) -> Result<()> {
+    pub async fn load_issues(&mut self) -> Result<(), AppError> {
         self.loading = true;
         self.error = None;
 
@@ -235,7 +238,7 @@ impl<C: LinearApi> App<C> {
         Ok(())
     }
 
-    pub async fn load_backlog_issues(&mut self) -> Result<()> {
+    pub async fn load_backlog_issues(&mut self) -> Result<(), AppError> {
         self.loading = true;
         self.error = None;
 
@@ -353,7 +356,7 @@ impl<C: LinearApi> App<C> {
         }
     }
 
-    pub async fn update_selected_issue_status(&mut self, _state: &WorkflowState) -> Result<()> {
+    pub async fn update_selected_issue_status(&mut self, _state: &WorkflowState) -> Result<(), AppError> {
         let Some(filtered_item) = self.filtered_states.get(self.selected_status_index) else {
             return Ok(());
         };
@@ -385,7 +388,7 @@ impl<C: LinearApi> App<C> {
         Ok(())
     }
 
-    pub async fn select_team_from_filter(&mut self) -> Result<()> {
+    pub async fn select_team_from_filter(&mut self) -> Result<(), AppError> {
         if let Some(filtered) = self.filtered_teams.get(self.selected_team_index) {
             let team = filtered.item.clone();
             self.current_team = Some(team);
@@ -396,7 +399,7 @@ impl<C: LinearApi> App<C> {
         Ok(())
     }
 
-    pub async fn select_cycle_from_filter(&mut self) -> Result<()> {
+    pub async fn select_cycle_from_filter(&mut self) -> Result<(), AppError> {
         if let Some(filtered) = self.filtered_cycles.get(self.selected_cycle_index) {
             self.current_cycle = Some(filtered.item.clone());
             self.cycle_filter.clear();
@@ -481,7 +484,7 @@ impl<C: LinearApi> App<C> {
             .saturating_sub(self.detail_viewport_height);
     }
 
-    pub fn open_selected_issue(&self) -> Result<()> {
+    pub fn open_selected_issue(&self) -> Result<(), AppError> {
         if let Some(issue) = self.selected_issue() {
             open::that(&issue.url)?;
         }
@@ -620,7 +623,7 @@ impl<C: LinearApi> App<C> {
         }
     }
 
-    pub async fn jump_to_current_cycle(&mut self) -> Result<()> {
+    pub async fn jump_to_current_cycle(&mut self) -> Result<(), AppError> {
         if let Some(current) = find_current_cycle(&self.cycles) {
             self.current_cycle = Some(current.clone());
             self.cycle_filter.clear();
@@ -761,11 +764,11 @@ mod tests {
     }
 
     impl LinearApi for MockClient {
-        async fn fetch_teams(&self) -> anyhow::Result<Vec<Team>> {
+        async fn fetch_teams(&self) -> Result<Vec<Team>, ApiError> {
             Ok(self.teams.clone())
         }
 
-        async fn fetch_cycles(&self, _team_id: &str) -> anyhow::Result<Vec<Cycle>> {
+        async fn fetch_cycles(&self, _team_id: &str) -> Result<Vec<Cycle>, ApiError> {
             Ok(self.cycles.clone())
         }
 
@@ -774,7 +777,7 @@ mod tests {
             _team_id: Option<&str>,
             _cycle_id: Option<&str>,
             _assignee_id: Option<&str>,
-        ) -> anyhow::Result<Vec<Issue>> {
+        ) -> Result<Vec<Issue>, ApiError> {
             Ok(self.issues.clone())
         }
 
@@ -782,14 +785,14 @@ mod tests {
             &self,
             _team_id: &str,
             _assignee_id: Option<&str>,
-        ) -> anyhow::Result<Vec<Issue>> {
+        ) -> Result<Vec<Issue>, ApiError> {
             Ok(self.issues.clone())
         }
 
         async fn fetch_workflow_states(
             &self,
             _team_id: &str,
-        ) -> anyhow::Result<Vec<WorkflowState>> {
+        ) -> Result<Vec<WorkflowState>, ApiError> {
             Ok(self.workflow_states.clone())
         }
 
@@ -797,7 +800,7 @@ mod tests {
             &self,
             _issue_id: &str,
             state_id: &str,
-        ) -> anyhow::Result<Issue> {
+        ) -> Result<Issue, ApiError> {
             let mut issue = self.issues[0].clone();
             issue.state = self
                 .workflow_states
@@ -808,9 +811,10 @@ mod tests {
             Ok(issue)
         }
 
-        async fn fetch_viewer(&self) -> anyhow::Result<User> {
-            use anyhow::Context;
-            self.viewer.clone().context("No viewer configured")
+        async fn fetch_viewer(&self) -> Result<User, ApiError> {
+            self.viewer
+                .clone()
+                .ok_or(ApiError::MissingData { context: "viewer" })
         }
     }
 

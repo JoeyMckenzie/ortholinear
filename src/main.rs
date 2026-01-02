@@ -1,11 +1,11 @@
 mod api;
 mod app;
 mod config;
+mod error;
 mod fuzzy;
 mod markdown;
 mod ui;
 
-use anyhow::Result;
 use api::{LinearApi, LinearClient};
 use app::{App, Mode};
 use config::Config;
@@ -14,11 +14,12 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use error::AppError;
 use ratatui::prelude::*;
 use std::io::{self, stdout};
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), AppError> {
     let config = match Config::load() {
         Ok(c) => c,
         Err(e) => {
@@ -45,7 +46,7 @@ async fn main() -> Result<()> {
 async fn run<C: LinearApi>(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App<C>,
-) -> Result<()> {
+) -> Result<(), AppError> {
     app.init().await?;
 
     loop {

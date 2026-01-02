@@ -1,6 +1,6 @@
+use crate::api::error::ApiError;
 use crate::api::types::*;
 use crate::api::LinearApi;
-use anyhow::{bail, Context, Result};
 use reqwest::Client;
 use serde_json::json;
 
@@ -23,7 +23,7 @@ impl LinearClient {
         &self,
         query: &str,
         variables: Option<serde_json::Value>,
-    ) -> Result<T> {
+    ) -> Result<T, ApiError> {
         let body = json!({
             "query": query,
             "variables": variables.unwrap_or(json!({}))
@@ -37,31 +37,29 @@ impl LinearClient {
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
-            .await
-            .context("Failed to send request to Linear API")?;
+            .await?;
 
         let status = response.status();
         if !status.is_success() {
-            let text = response.text().await.unwrap_or_default();
-            bail!("Linear API error ({}): {}", status, text);
+            let body = response.text().await.unwrap_or_default();
+            return Err(ApiError::Http { status, body });
         }
 
-        let result: GraphQLResponse<T> = response
-            .json()
-            .await
-            .context("Failed to parse Linear API response")?;
+        let result: GraphQLResponse<T> = response.json().await?;
 
         if let Some(errors) = result.errors {
-            let messages: Vec<_> = errors.iter().map(|e| e.message.as_str()).collect();
-            bail!("GraphQL errors: {}", messages.join(", "));
+            let messages = errors.into_iter().map(|e| e.message).collect();
+            return Err(ApiError::GraphQL { messages });
         }
 
-        result.data.context("No data in response")
+        result
+            .data
+            .ok_or(ApiError::MissingData { context: "response" })
     }
 }
 
 impl LinearApi for LinearClient {
-    async fn fetch_teams(&self) -> Result<Vec<Team>> {
+    async fn fetch_teams(&self) -> Result<Vec<Team>, ApiError> {
         let query = r#"
             query Teams {
                 teams {
@@ -78,7 +76,7 @@ impl LinearApi for LinearClient {
         Ok(response.teams.nodes)
     }
 
-    async fn fetch_cycles(&self, team_id: &str) -> Result<Vec<Cycle>> {
+    async fn fetch_cycles(&self, team_id: &str) -> Result<Vec<Cycle>, ApiError> {
         let query = r#"
             query Cycles($teamId: String!) {
                 team(id: $teamId) {
@@ -105,7 +103,7 @@ impl LinearApi for LinearClient {
         team_id: Option<&str>,
         cycle_id: Option<&str>,
         assignee_id: Option<&str>,
-    ) -> Result<Vec<Issue>> {
+    ) -> Result<Vec<Issue>, ApiError> {
         let query = r#"
             query Issues($filter: IssueFilter) {
                 issues(first: 50, filter: $filter, orderBy: updatedAt) {
@@ -155,7 +153,7 @@ impl LinearApi for LinearClient {
         &self,
         team_id: &str,
         assignee_id: Option<&str>,
-    ) -> Result<Vec<Issue>> {
+    ) -> Result<Vec<Issue>, ApiError> {
         let query = r#"
             query BacklogIssues($filter: IssueFilter) {
                 issues(first: 50, filter: $filter, orderBy: updatedAt) {
@@ -197,7 +195,7 @@ impl LinearApi for LinearClient {
         Ok(response.issues.nodes)
     }
 
-    async fn fetch_workflow_states(&self, team_id: &str) -> Result<Vec<WorkflowState>> {
+    async fn fetch_workflow_states(&self, team_id: &str) -> Result<Vec<WorkflowState>, ApiError> {
         let query = r#"
             query WorkflowStates($teamId: String!) {
                 workflowStates(filter: { team: { id: { eq: $teamId } } }) {
@@ -216,7 +214,11 @@ impl LinearApi for LinearClient {
         Ok(response.workflow_states.nodes)
     }
 
-    async fn update_issue_status(&self, issue_id: &str, state_id: &str) -> Result<Issue> {
+    async fn update_issue_status(
+        &self,
+        issue_id: &str,
+        state_id: &str,
+    ) -> Result<Issue, ApiError> {
         let query = r#"
             mutation UpdateIssueState($issueId: String!, $stateId: String!) {
                 issueUpdate(id: $issueId, input: { stateId: $stateId }) {
@@ -255,13 +257,16 @@ impl LinearApi for LinearClient {
         let response: IssueUpdateResponse = self.query(query, Some(variables)).await?;
 
         if !response.issue_update.success {
-            bail!("Failed to update issue status");
+            return Err(ApiError::UpdateFailed);
         }
 
-        response.issue_update.issue.context("No issue in response")
+        response
+            .issue_update
+            .issue
+            .ok_or(ApiError::MissingData { context: "issue" })
     }
 
-    async fn fetch_viewer(&self) -> Result<User> {
+    async fn fetch_viewer(&self) -> Result<User, ApiError> {
         let query = r#"
             query Viewer {
                 viewer {
