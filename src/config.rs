@@ -112,9 +112,19 @@ impl Config {
     }
 
     fn config_file_path() -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .context("Could not determine config directory")?
-            .join("ortholinear");
+        let config_dir = if let Ok(xdg_config) = env::var("XDG_CONFIG_HOME") {
+            if !xdg_config.is_empty() {
+                PathBuf::from(xdg_config).join("ortholinear")
+            } else {
+                dirs::config_dir()
+                    .context("Could not determine config directory")?
+                    .join("ortholinear")
+            }
+        } else {
+            dirs::config_dir()
+                .context("Could not determine config directory")?
+                .join("ortholinear")
+        };
 
         Ok(config_dir.join(CONFIG_FILE_NAME))
     }
