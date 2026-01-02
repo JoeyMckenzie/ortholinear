@@ -819,6 +819,71 @@ impl<C: LinearApi> App<C> {
         }
         Ok(())
     }
+
+    pub fn enter_search(&mut self) {
+        self.mode = Mode::Search;
+        self.search_query.clear();
+    }
+
+    pub fn cancel_search(&mut self) {
+        self.search_query.clear();
+        self.mode = Mode::Normal;
+    }
+
+    pub fn search_input(&mut self, c: char) {
+        self.search_query.push(c);
+    }
+
+    pub fn search_backspace(&mut self) {
+        self.search_query.pop();
+    }
+
+    pub async fn execute_search(&mut self) -> Result<(), AppError> {
+        if self.search_query.trim().is_empty() {
+            self.cancel_search();
+            return Ok(());
+        }
+
+        self.loading = true;
+        let result = self.client.search_issues(&self.search_query).await;
+        self.loading = false;
+
+        match result {
+            Ok(issues) => {
+                self.search_results = issues;
+                self.in_search_context = true;
+                self.selected_search_index = 0;
+                self.mode = Mode::SearchResults;
+            }
+            Err(e) => {
+                self.error = Some(e.to_string());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn exit_search_results(&mut self) {
+        self.mode = Mode::Normal;
+        self.in_search_context = false;
+        self.search_results.clear();
+        self.search_query.clear();
+        self.selected_search_index = 0;
+    }
+
+    pub fn next_search_result(&mut self) {
+        if !self.search_results.is_empty() {
+            self.selected_search_index = (self.selected_search_index + 1)
+                .min(self.search_results.len().saturating_sub(1));
+        }
+    }
+
+    pub fn previous_search_result(&mut self) {
+        self.selected_search_index = self.selected_search_index.saturating_sub(1);
+    }
+
+    pub fn selected_search_result(&self) -> Option<&Issue> {
+        self.search_results.get(self.selected_search_index)
+    }
 }
 
 #[cfg(test)]
@@ -1840,5 +1905,117 @@ mod tests {
             &app.timeline_events[0],
             super::TimelineEvent::Comment { user, .. } if user == "Cached"
         ));
+    }
+
+    #[test]
+    fn enter_search_changes_mode() {
+        let mut app = create_test_app();
+        app.enter_search();
+        assert_eq!(app.mode, Mode::Search);
+        assert!(app.search_query.is_empty());
+    }
+
+    #[test]
+    fn cancel_search_returns_to_normal() {
+        let mut app = create_test_app();
+        app.mode = Mode::Search;
+        app.search_query = "test".to_string();
+        app.cancel_search();
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(app.search_query.is_empty());
+    }
+
+    #[test]
+    fn search_input_appends_character() {
+        let mut app = create_test_app();
+        app.mode = Mode::Search;
+        app.search_input('a');
+        app.search_input('b');
+        assert_eq!(app.search_query, "ab");
+    }
+
+    #[test]
+    fn search_backspace_removes_character() {
+        let mut app = create_test_app();
+        app.search_query = "test".to_string();
+        app.search_backspace();
+        assert_eq!(app.search_query, "tes");
+    }
+
+    #[test]
+    fn search_backspace_handles_empty() {
+        let mut app = create_test_app();
+        app.search_backspace();
+        assert!(app.search_query.is_empty());
+    }
+
+    #[tokio::test]
+    async fn execute_search_enters_results_mode() {
+        let mut app = create_test_app();
+        app.mode = Mode::Search;
+        app.search_query = "test".to_string();
+        app.execute_search().await.unwrap();
+        assert_eq!(app.mode, Mode::SearchResults);
+        assert!(app.in_search_context);
+        assert_eq!(app.selected_search_index, 0);
+    }
+
+    #[tokio::test]
+    async fn execute_search_empty_query_cancels() {
+        let mut app = create_test_app();
+        app.mode = Mode::Search;
+        app.search_query.clear();
+        app.execute_search().await.unwrap();
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(!app.in_search_context);
+    }
+
+    #[test]
+    fn exit_search_results_restores_normal() {
+        let mut app = create_test_app();
+        app.mode = Mode::SearchResults;
+        app.in_search_context = true;
+        app.search_results = vec![];
+        app.exit_search_results();
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(!app.in_search_context);
+        assert!(app.search_results.is_empty());
+        assert!(app.search_query.is_empty());
+    }
+
+    #[test]
+    fn next_search_result_increments() {
+        let mut app = create_test_app();
+        app.search_results = app.client.issues.clone();
+        app.selected_search_index = 0;
+        app.next_search_result();
+        assert_eq!(app.selected_search_index, 1);
+    }
+
+    #[test]
+    fn next_search_result_stops_at_end() {
+        let mut app = create_test_app();
+        app.search_results = app.client.issues.clone();
+        app.selected_search_index = app.search_results.len().saturating_sub(1);
+        app.next_search_result();
+        assert_eq!(app.selected_search_index, app.search_results.len().saturating_sub(1));
+    }
+
+    #[test]
+    fn previous_search_result_decrements() {
+        let mut app = create_test_app();
+        app.search_results = app.client.issues.clone();
+        app.selected_search_index = 1;
+        app.previous_search_result();
+        assert_eq!(app.selected_search_index, 0);
+    }
+
+    #[test]
+    fn previous_search_result_stops_at_start() {
+        let mut app = create_test_app();
+        app.search_results = app.client.issues.clone();
+        app.selected_search_index = 0;
+        app.previous_search_result();
+        assert_eq!(app.selected_search_index, 0);
     }
 }
