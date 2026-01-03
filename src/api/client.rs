@@ -427,7 +427,10 @@ impl LinearApi for LinearClient {
 
         let variables = json!({
             "filter": {
-                "title": { "contains": query }
+                "or": [
+                    { "identifier": { "contains": query } },
+                    { "title": { "containsIgnoreCase": query } }
+                ]
             }
         });
 
