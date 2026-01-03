@@ -430,10 +430,7 @@ impl LinearApi for LinearClient {
         let mut filters = vec![json!({ "title": { "containsIgnoreCase": query } })];
 
         // If query looks like an identifier (e.g., "PROJ-123" or just "123"), try to extract number
-        let number_part = query
-            .split('-')
-            .last()
-            .and_then(|s| s.parse::<i32>().ok());
+        let number_part = query.split('-').last().and_then(|s| s.parse::<i32>().ok());
 
         if let Some(num) = number_part {
             filters.push(json!({ "number": { "eq": num } }));
