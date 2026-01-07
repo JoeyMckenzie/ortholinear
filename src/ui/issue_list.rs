@@ -11,6 +11,11 @@ pub fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Re
             app.search_results.iter().collect(),
             app.selected_search_index,
         )
+    } else if app.in_view_context {
+        (
+            app.view_issues.iter().collect(),
+            app.selected_issue_index,
+        )
     } else {
         (
             app.filtered_issues.iter().map(|f| &f.item).collect(),
@@ -30,7 +35,7 @@ pub fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Re
 
             let prefix = if i == selected_index { "> " } else { "  " };
 
-            let team_prefix = if app.in_search_context {
+            let team_prefix = if app.in_search_context || app.in_view_context {
                 issue
                     .team
                     .as_ref()
@@ -52,6 +57,8 @@ pub fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Re
 
     let title = if app.in_search_context {
         " Search Results ".to_string()
+    } else if app.in_view_context {
+        " View Issues ".to_string()
     } else {
         build_issues_title(app)
     };
