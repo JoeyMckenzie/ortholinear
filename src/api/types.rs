@@ -235,6 +235,7 @@ pub struct CustomView {
     pub icon: Option<String>,
     #[allow(dead_code)]
     pub color: Option<String>,
+    pub team: Option<Team>,
 }
 
 #[derive(Debug, Deserialize)]

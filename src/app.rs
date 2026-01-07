@@ -408,8 +408,20 @@ impl<C: LinearApi> App<C> {
     }
 
     fn update_filtered_views(&mut self) {
-        self.filtered_views =
-            filter_items(&self.custom_views, &self.view_filter, |v| v.name.clone());
+        // Filter views to only show those matching the current team
+        let current_team_id = self.current_team.as_ref().map(|t| t.id.as_str());
+        let team_views: Vec<CustomView> = self
+            .custom_views
+            .iter()
+            .filter(|v| {
+                v.team
+                    .as_ref()
+                    .map(|t| Some(t.id.as_str()) == current_team_id)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        self.filtered_views = filter_items(&team_views, &self.view_filter, |v| v.name.clone());
     }
 
     pub fn filter_input(&mut self, c: char) {
@@ -2225,6 +2237,7 @@ mod tests {
             name: "Test View".to_string(),
             icon: None,
             color: None,
+            team: None,
         });
         app.view_issues = app.client.issues.clone();
         app.exit_view_context();

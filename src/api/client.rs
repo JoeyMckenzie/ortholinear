@@ -458,6 +458,11 @@ impl LinearApi for LinearClient {
                         name
                         icon
                         color
+                        team {
+                            id
+                            name
+                            key
+                        }
                     }
                 }
             }
