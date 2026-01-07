@@ -46,4 +46,11 @@ pub trait LinearApi: Send + Sync {
         &self,
         query: &str,
     ) -> impl std::future::Future<Output = Result<Vec<Issue>, ApiError>> + Send;
+    fn fetch_custom_views(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<CustomView>, ApiError>> + Send;
+    fn fetch_view_issues(
+        &self,
+        view_id: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<Issue>, ApiError>> + Send;
 }

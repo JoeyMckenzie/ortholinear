@@ -445,4 +445,64 @@ impl LinearApi for LinearClient {
         let response: IssuesResponse = self.query(graphql_query, Some(variables)).await?;
         Ok(response.issues.nodes)
     }
+
+    async fn fetch_custom_views(&self) -> Result<Vec<CustomView>, ApiError> {
+        let query = r#"
+            query CustomViews {
+                customViews {
+                    nodes {
+                        id
+                        name
+                        icon
+                        color
+                    }
+                }
+            }
+        "#;
+
+        let response: CustomViewsResponse = self.query(query, None).await?;
+        Ok(response.custom_views.nodes)
+    }
+
+    async fn fetch_view_issues(&self, view_id: &str) -> Result<Vec<Issue>, ApiError> {
+        let query = r#"
+            query CustomViewIssues($viewId: String!) {
+                customView(id: $viewId) {
+                    issues(first: 50) {
+                        nodes {
+                            id
+                            identifier
+                            title
+                            description
+                            url
+                            state {
+                                id
+                                name
+                                color
+                                type
+                            }
+                            assignee {
+                                id
+                                name
+                            }
+                            priority
+                            project {
+                                id
+                                name
+                            }
+                            team {
+                                id
+                                name
+                                key
+                            }
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let variables = json!({ "viewId": view_id });
+        let response: CustomViewIssuesResponse = self.query(query, Some(variables)).await?;
+        Ok(response.custom_view.issues.nodes)
+    }
 }
