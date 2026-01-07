@@ -114,6 +114,7 @@ pub struct Issue {
 pub struct WorkflowState {
     pub id: String,
     pub name: String,
+    #[allow(dead_code)]
     pub color: String,
     /// Workflow state category: "Backlog", "Active", "Completed", or "Canceled"
     #[serde(rename = "type")]
@@ -133,6 +134,7 @@ pub struct ViewerResponse {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Project {
+    #[allow(dead_code)]
     pub id: String,
     pub name: String,
 }
@@ -157,6 +159,7 @@ pub struct IssueUpdatePayload {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Comment {
+    #[allow(dead_code)]
     pub id: String,
     pub body: String,
     #[serde(rename = "createdAt")]
@@ -166,6 +169,7 @@ pub struct Comment {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct IssueHistory {
+    #[allow(dead_code)]
     pub id: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
@@ -229,6 +233,7 @@ pub struct CustomView {
     pub id: String,
     pub name: String,
     pub icon: Option<String>,
+    #[allow(dead_code)]
     pub color: Option<String>,
 }
 

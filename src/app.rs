@@ -408,7 +408,8 @@ impl<C: LinearApi> App<C> {
     }
 
     fn update_filtered_views(&mut self) {
-        self.filtered_views = filter_items(&self.custom_views, &self.view_filter, |v| v.name.clone());
+        self.filtered_views =
+            filter_items(&self.custom_views, &self.view_filter, |v| v.name.clone());
     }
 
     pub fn filter_input(&mut self, c: char) {
@@ -471,6 +472,7 @@ impl<C: LinearApi> App<C> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn current_filter(&self) -> &str {
         match self.mode {
             Mode::IssueFilter => &self.issue_filter,

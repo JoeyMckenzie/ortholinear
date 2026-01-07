@@ -12,10 +12,7 @@ pub fn render_issue_list<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Re
             app.selected_search_index,
         )
     } else if app.in_view_context {
-        (
-            app.view_issues.iter().collect(),
-            app.selected_issue_index,
-        )
+        (app.view_issues.iter().collect(), app.selected_issue_index)
     } else {
         (
             app.filtered_issues.iter().map(|f| &f.item).collect(),
