@@ -29,7 +29,7 @@ pub fn render<C: LinearApi>(frame: &mut Frame, app: &mut App<C>) {
         Mode::StatusSelect => pickers::render_status_picker(frame, app),
         Mode::IssueFilter => pickers::render_issue_filter(frame, app),
         Mode::Search => pickers::render_search_input(frame, app),
-        Mode::Normal | Mode::DetailView | Mode::SearchResults => {}
+        Mode::Normal | Mode::DetailView | Mode::SearchResults | Mode::ViewSelect => {}
     }
 
     if let Some(error) = &app.error {

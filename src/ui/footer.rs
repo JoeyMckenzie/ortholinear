@@ -95,6 +95,15 @@ pub fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) 
             Span::styled("q", Style::default().fg(Color::Yellow)),
             Span::styled(": quit", Style::default().fg(Color::DarkGray)),
         ]),
+        Mode::ViewSelect => Line::from(vec![
+            Span::styled(" Type to filter  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Tab/↓↑", Style::default().fg(Color::Yellow)),
+            Span::styled(": navigate  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Enter", Style::default().fg(Color::Yellow)),
+            Span::styled(": select  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("Esc", Style::default().fg(Color::Yellow)),
+            Span::styled(": cancel", Style::default().fg(Color::DarkGray)),
+        ]),
     };
 
     let footer = Paragraph::new(help_text).block(

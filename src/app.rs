@@ -19,6 +19,7 @@ pub enum Mode {
     StatusSelect,
     Search,
     SearchResults,
+    ViewSelect,
 }
 
 pub struct App<C: LinearApi> {
@@ -402,7 +403,7 @@ impl<C: LinearApi> App<C> {
                 self.update_filtered_states();
                 self.selected_status_index = 0;
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
         }
     }
 
@@ -428,7 +429,7 @@ impl<C: LinearApi> App<C> {
                 self.update_filtered_states();
                 self.selected_status_index = 0;
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
         }
     }
 
@@ -438,7 +439,7 @@ impl<C: LinearApi> App<C> {
             Mode::TeamSelect => &self.team_filter,
             Mode::CycleSelect => &self.cycle_filter,
             Mode::StatusSelect => &self.status_filter,
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => "",
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => "",
         }
     }
 
@@ -746,7 +747,7 @@ impl<C: LinearApi> App<C> {
             Mode::IssueFilter => {
                 self.next_issue();
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
         }
     }
 
@@ -764,7 +765,7 @@ impl<C: LinearApi> App<C> {
             Mode::IssueFilter => {
                 self.previous_issue();
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
         }
     }
 
@@ -834,7 +835,7 @@ impl<C: LinearApi> App<C> {
             Mode::StatusSelect => {
                 self.status_filter.clear();
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
         }
         self.mode = Mode::Normal;
     }

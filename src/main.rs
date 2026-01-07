@@ -263,6 +263,10 @@ async fn run<C: LinearApi>(
                         KeyCode::Char('q') => break,
                         _ => {}
                     },
+                    Mode::ViewSelect => match key.code {
+                        KeyCode::Esc => app.cancel_picker(),
+                        _ => {}
+                    },
                 }
             }
         }
