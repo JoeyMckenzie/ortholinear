@@ -1,4 +1,4 @@
-use crate::api::{Cycle, Issue, LinearApi, Team, TimelineEvent, User, WorkflowState};
+use crate::api::{CustomView, Cycle, Issue, LinearApi, Team, TimelineEvent, User, WorkflowState};
 use crate::config::{AssigneeDefault, Config, CycleDefault};
 use crate::error::AppError;
 use crate::fuzzy::{filter_items, FilteredItem};
@@ -73,6 +73,14 @@ pub struct App<C: LinearApi> {
     pub search_results: Vec<Issue>,
     pub in_search_context: bool,
     pub selected_search_index: usize,
+
+    pub custom_views: Vec<CustomView>,
+    pub filtered_views: Vec<FilteredItem<CustomView>>,
+    pub selected_view_index: usize,
+    pub view_filter: String,
+    pub current_view: Option<CustomView>,
+    pub view_issues: Vec<Issue>,
+    pub in_view_context: bool,
 }
 
 /// Parse a date string that may be in ISO 8601 format (e.g., "2024-12-30T00:00:00.000Z")
@@ -202,6 +210,13 @@ impl<C: LinearApi> App<C> {
             search_results: Vec::new(),
             in_search_context: false,
             selected_search_index: 0,
+            custom_views: Vec::new(),
+            filtered_views: Vec::new(),
+            selected_view_index: 0,
+            view_filter: String::new(),
+            current_view: None,
+            view_issues: Vec::new(),
+            in_view_context: false,
         }
     }
 
