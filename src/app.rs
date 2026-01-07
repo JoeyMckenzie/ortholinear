@@ -262,6 +262,17 @@ impl<C: LinearApi> App<C> {
             }
         }
 
+        // Load custom views
+        match self.client.fetch_custom_views().await {
+            Ok(views) => {
+                self.custom_views = views;
+                self.update_filtered_views();
+            }
+            Err(e) => {
+                self.error = Some(format!("Failed to load custom views: {}", e));
+            }
+        }
+
         self.loading = false;
         Ok(())
     }
