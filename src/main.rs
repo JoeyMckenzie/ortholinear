@@ -175,7 +175,16 @@ async fn run<C: LinearApi>(
                         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             app.enter_search();
                         }
-                        KeyCode::Esc => app.clear_error(),
+                        KeyCode::Char('v') => app.enter_view_select(),
+                        KeyCode::Esc => {
+                            if app.in_search_context {
+                                app.exit_search_results();
+                            } else if app.in_view_context {
+                                app.exit_view_context();
+                            } else {
+                                app.clear_error();
+                            }
+                        }
                         _ => {}
                     },
                     Mode::DetailView => match key.code {
@@ -264,7 +273,14 @@ async fn run<C: LinearApi>(
                         _ => {}
                     },
                     Mode::ViewSelect => match key.code {
+                        KeyCode::Enter => {
+                            app.select_view_from_filter().await?;
+                        }
                         KeyCode::Esc => app.cancel_picker(),
+                        KeyCode::Backspace => app.filter_backspace(),
+                        KeyCode::Down | KeyCode::Tab => app.next_picker_item(),
+                        KeyCode::Up | KeyCode::BackTab => app.previous_picker_item(),
+                        KeyCode::Char(c) => app.filter_input(c),
                         _ => {}
                     },
                 }
