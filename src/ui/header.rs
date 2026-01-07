@@ -21,6 +21,26 @@ pub fn render_header<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) 
                 Style::default().fg(Color::Yellow),
             ),
         ])
+    } else if app.in_view_context {
+        let issue_count = app.view_issues.len();
+        let view_name = app
+            .current_view
+            .as_ref()
+            .map(|v| v.name.as_str())
+            .unwrap_or("Unknown");
+        Line::from(vec![
+            Span::styled(" [View: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(view_name, Style::default().fg(Color::Cyan)),
+            Span::styled("] ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!(
+                    "{} issue{}",
+                    issue_count,
+                    if issue_count == 1 { "" } else { "s" }
+                ),
+                Style::default().fg(Color::Yellow),
+            ),
+        ])
     } else {
         let team_name = app
             .current_team
