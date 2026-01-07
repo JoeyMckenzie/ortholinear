@@ -23,6 +23,8 @@ pub fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) 
                 Span::styled(": team  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("c", Style::default().fg(Color::Yellow)),
                 Span::styled(": cycle  ", Style::default().fg(Color::DarkGray)),
+                Span::styled("v", Style::default().fg(Color::Yellow)),
+                Span::styled(": view  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("B", Style::default().fg(Color::Yellow)),
                 Span::styled(": backlog  ", Style::default().fg(Color::DarkGray)),
                 Span::styled("C", Style::default().fg(Color::Yellow)),
