@@ -196,6 +196,20 @@ async fn run<C: LinearApi>(
                                 app.error = Some(format!("Failed to open URL: {}", e));
                             }
                         }
+                        KeyCode::Char('y') => {
+                            if let Some(issue) = app.current_issue() {
+                                match arboard::Clipboard::new() {
+                                    Ok(mut clipboard) => {
+                                        if let Err(e) = clipboard.set_text(&issue.url) {
+                                            app.error = Some(format!("Failed to copy: {}", e));
+                                        }
+                                    }
+                                    Err(e) => {
+                                        app.error = Some(format!("Clipboard error: {}", e));
+                                    }
+                                }
+                            }
+                        }
                         KeyCode::Char('e') => {
                             edit_description(terminal, app).await?;
                         }

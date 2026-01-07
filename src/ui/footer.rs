@@ -61,6 +61,8 @@ pub fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) 
             Span::styled(": edit  ", Style::default().fg(Color::DarkGray)),
             Span::styled("o", Style::default().fg(Color::Yellow)),
             Span::styled(": open  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("y", Style::default().fg(Color::Yellow)),
+            Span::styled(": copy URL  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Esc/Enter/q", Style::default().fg(Color::Yellow)),
             Span::styled(": back", Style::default().fg(Color::DarkGray)),
         ]),
