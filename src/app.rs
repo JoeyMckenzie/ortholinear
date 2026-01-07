@@ -1039,6 +1039,57 @@ impl<C: LinearApi> App<C> {
         self.current_view = None;
         self.view_issues.clear();
     }
+
+    /// Refresh the current issue list based on context (view, search, backlog, or normal)
+    pub async fn refresh(&mut self) -> Result<(), AppError> {
+        self.clear_timeline_cache();
+
+        if self.in_view_context {
+            // Refresh view issues
+            if let Some(view) = &self.current_view {
+                self.loading = true;
+                let view_id = view.id.clone();
+                let result = self.client.fetch_view_issues(&view_id).await;
+                self.loading = false;
+
+                match result {
+                    Ok(issues) => {
+                        self.view_issues = issues;
+                        self.selected_issue_index =
+                            self.selected_issue_index.min(self.view_issues.len().saturating_sub(1));
+                    }
+                    Err(e) => {
+                        self.error = Some(format!("Failed to refresh view: {}", e));
+                    }
+                }
+            }
+        } else if self.in_search_context {
+            // Re-run search
+            self.loading = true;
+            let result = self.client.search_issues(&self.search_query).await;
+            self.loading = false;
+
+            match result {
+                Ok(issues) => {
+                    self.search_results = issues;
+                    self.selected_search_index = self
+                        .selected_search_index
+                        .min(self.search_results.len().saturating_sub(1));
+                }
+                Err(e) => {
+                    self.error = Some(format!("Failed to refresh search: {}", e));
+                }
+            }
+        } else if self.backlog_mode {
+            // Refresh backlog issues
+            self.load_backlog_issues().await?;
+        } else {
+            // Refresh normal team/cycle issues
+            self.load_issues().await?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

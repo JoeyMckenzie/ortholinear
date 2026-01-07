@@ -38,6 +38,8 @@ pub fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) 
                     },
                     Style::default().fg(Color::DarkGray),
                 ),
+                Span::styled("r", Style::default().fg(Color::Yellow)),
+                Span::styled(": refresh  ", Style::default().fg(Color::DarkGray)),
             ];
             if !app.issue_filter.is_empty() {
                 spans.push(Span::styled("x", Style::default().fg(Color::Yellow)));
@@ -92,6 +94,8 @@ pub fn render_footer<C: LinearApi>(frame: &mut Frame, app: &App<C>, area: Rect) 
             Span::styled(": navigate  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Enter", Style::default().fg(Color::Yellow)),
             Span::styled(": view  ", Style::default().fg(Color::DarkGray)),
+            Span::styled("r", Style::default().fg(Color::Yellow)),
+            Span::styled(": refresh  ", Style::default().fg(Color::DarkGray)),
             Span::styled("Esc", Style::default().fg(Color::Yellow)),
             Span::styled(": exit search  ", Style::default().fg(Color::DarkGray)),
             Span::styled("q", Style::default().fg(Color::Yellow)),

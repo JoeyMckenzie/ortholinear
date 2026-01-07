@@ -169,7 +169,7 @@ async fn run<C: LinearApi>(
                             app.load_issues().await?;
                         }
                         KeyCode::Char('r') => {
-                            app.load_issues().await?;
+                            app.refresh().await?;
                         }
                         KeyCode::Char('x') => app.clear_issue_filter(),
                         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -267,6 +267,9 @@ async fn run<C: LinearApi>(
                         KeyCode::Char('k') | KeyCode::Up => app.previous_search_result(),
                         KeyCode::Enter => {
                             app.enter_detail_view().await?;
+                        }
+                        KeyCode::Char('r') => {
+                            app.refresh().await?;
                         }
                         KeyCode::Esc => app.exit_search_results(),
                         KeyCode::Char('q') => break,
