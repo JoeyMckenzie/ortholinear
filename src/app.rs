@@ -2195,4 +2195,49 @@ mod tests {
         assert_eq!(app.mode, Mode::SearchResults);
         assert!(app.in_search_context);
     }
+
+    #[test]
+    fn enter_view_select_changes_mode() {
+        let mut app = create_test_app();
+        app.enter_view_select();
+        assert_eq!(app.mode, Mode::ViewSelect);
+        assert!(app.view_filter.is_empty());
+    }
+
+    #[test]
+    fn cancel_view_select_returns_to_normal() {
+        let mut app = create_test_app();
+        app.mode = Mode::ViewSelect;
+        app.view_filter = "test".to_string();
+        app.cancel_picker();
+        assert_eq!(app.mode, Mode::Normal);
+        assert!(app.view_filter.is_empty());
+    }
+
+    #[test]
+    fn exit_view_context_clears_state() {
+        let mut app = create_test_app();
+        app.in_view_context = true;
+        app.current_view = Some(CustomView {
+            id: "v1".to_string(),
+            name: "Test View".to_string(),
+            icon: None,
+            color: None,
+        });
+        app.view_issues = app.client.issues.clone();
+        app.exit_view_context();
+        assert!(!app.in_view_context);
+        assert!(app.current_view.is_none());
+        assert!(app.view_issues.is_empty());
+    }
+
+    #[test]
+    fn current_issue_returns_view_issue_when_in_view_context() {
+        let mut app = create_test_app();
+        app.in_view_context = true;
+        app.view_issues = app.client.issues.clone();
+        app.selected_issue_index = 0;
+        assert!(app.current_issue().is_some());
+        assert_eq!(app.current_issue().unwrap().id, app.view_issues[0].id);
+    }
 }
