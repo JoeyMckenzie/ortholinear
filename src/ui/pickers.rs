@@ -227,3 +227,55 @@ pub fn render_search_input<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
 
     frame.render_widget(input, inner);
 }
+
+pub fn render_view_picker<C: LinearApi>(frame: &mut Frame, app: &App<C>) {
+    let area = centered_rect(50, 50, frame.area());
+    frame.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Select View ")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2), // Filter input
+            Constraint::Min(0),    // List
+        ])
+        .split(inner);
+
+    render_filter_input(frame, &app.view_filter, chunks[0]);
+
+    let items: Vec<ListItem> = app
+        .filtered_views
+        .iter()
+        .enumerate()
+        .map(|(i, filtered)| {
+            let view = &filtered.item;
+            let style = if i == app.selected_view_index {
+                Style::default().fg(Color::Yellow).bold()
+            } else {
+                Style::default()
+            };
+            let prefix = if i == app.selected_view_index {
+                "> "
+            } else {
+                "  "
+            };
+            let icon = view.icon.as_deref().unwrap_or("");
+            let display = if icon.is_empty() {
+                view.name.clone()
+            } else {
+                format!("{} {}", icon, view.name)
+            };
+            ListItem::new(format!("{}{}", prefix, display)).style(style)
+        })
+        .collect();
+
+    let list = List::new(items);
+    frame.render_widget(list, chunks[1]);
+}
