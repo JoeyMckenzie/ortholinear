@@ -396,6 +396,10 @@ impl<C: LinearApi> App<C> {
         });
     }
 
+    fn update_filtered_views(&mut self) {
+        self.filtered_views = filter_items(&self.custom_views, &self.view_filter, |v| v.name.clone());
+    }
+
     pub fn filter_input(&mut self, c: char) {
         match self.mode {
             Mode::IssueFilter => {
@@ -418,7 +422,11 @@ impl<C: LinearApi> App<C> {
                 self.update_filtered_states();
                 self.selected_status_index = 0;
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
+            Mode::ViewSelect => {
+                self.view_filter.push(c);
+                self.update_filtered_views();
+            }
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
     }
 
@@ -444,7 +452,11 @@ impl<C: LinearApi> App<C> {
                 self.update_filtered_states();
                 self.selected_status_index = 0;
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
+            Mode::ViewSelect => {
+                self.view_filter.pop();
+                self.update_filtered_views();
+            }
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
     }
 
@@ -454,7 +466,8 @@ impl<C: LinearApi> App<C> {
             Mode::TeamSelect => &self.team_filter,
             Mode::CycleSelect => &self.cycle_filter,
             Mode::StatusSelect => &self.status_filter,
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => "",
+            Mode::ViewSelect => &self.view_filter,
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => "",
         }
     }
 
@@ -667,6 +680,8 @@ impl<C: LinearApi> App<C> {
     pub fn current_issue(&self) -> Option<&Issue> {
         if self.in_search_context {
             self.selected_search_result()
+        } else if self.in_view_context {
+            self.view_issues.get(self.selected_issue_index)
         } else {
             self.selected_issue()
         }
@@ -762,7 +777,13 @@ impl<C: LinearApi> App<C> {
             Mode::IssueFilter => {
                 self.next_issue();
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
+            Mode::ViewSelect => {
+                if !self.filtered_views.is_empty() {
+                    self.selected_view_index = (self.selected_view_index + 1)
+                        .min(self.filtered_views.len().saturating_sub(1));
+                }
+            }
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
     }
 
@@ -780,7 +801,10 @@ impl<C: LinearApi> App<C> {
             Mode::IssueFilter => {
                 self.previous_issue();
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
+            Mode::ViewSelect => {
+                self.selected_view_index = self.selected_view_index.saturating_sub(1);
+            }
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
     }
 
@@ -850,7 +874,10 @@ impl<C: LinearApi> App<C> {
             Mode::StatusSelect => {
                 self.status_filter.clear();
             }
-            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults | Mode::ViewSelect => {}
+            Mode::ViewSelect => {
+                self.view_filter.clear();
+            }
+            Mode::Normal | Mode::DetailView | Mode::Search | Mode::SearchResults => {}
         }
         self.mode = Mode::Normal;
     }
@@ -943,6 +970,49 @@ impl<C: LinearApi> App<C> {
 
     pub fn selected_search_result(&self) -> Option<&Issue> {
         self.search_results.get(self.selected_search_index)
+    }
+
+    pub fn enter_view_select(&mut self) {
+        self.mode = Mode::ViewSelect;
+        self.view_filter.clear();
+        self.update_filtered_views();
+        self.selected_view_index = 0;
+    }
+
+    pub async fn select_view_from_filter(&mut self) -> Result<(), AppError> {
+        if let Some(view) = self
+            .filtered_views
+            .get(self.selected_view_index)
+            .map(|f| f.item.clone())
+        {
+            self.current_view = Some(view.clone());
+            self.view_filter.clear();
+            self.mode = Mode::Normal;
+
+            // Fetch view issues
+            self.loading = true;
+            let result = self.client.fetch_view_issues(&view.id).await;
+            self.loading = false;
+
+            match result {
+                Ok(issues) => {
+                    self.view_issues = issues;
+                    self.in_view_context = true;
+                    self.selected_issue_index = 0;
+                }
+                Err(e) => {
+                    self.error = Some(e.to_string());
+                    self.current_view = None;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn exit_view_context(&mut self) {
+        self.in_view_context = false;
+        self.current_view = None;
+        self.view_issues.clear();
     }
 }
 
@@ -1151,6 +1221,14 @@ mod tests {
         }
 
         async fn search_issues(&self, _query: &str) -> Result<Vec<Issue>, ApiError> {
+            Ok(self.issues.clone())
+        }
+
+        async fn fetch_custom_views(&self) -> Result<Vec<CustomView>, ApiError> {
+            Ok(Vec::new())
+        }
+
+        async fn fetch_view_issues(&self, _view_id: &str) -> Result<Vec<Issue>, ApiError> {
             Ok(self.issues.clone())
         }
     }
