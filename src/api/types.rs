@@ -223,3 +223,28 @@ impl TimelineEvent {
         }
     }
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CustomView {
+    pub id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CustomViewsResponse {
+    #[serde(rename = "customViews")]
+    pub custom_views: Connection<CustomView>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CustomViewIssuesResponse {
+    #[serde(rename = "customView")]
+    pub custom_view: CustomViewWithIssues,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CustomViewWithIssues {
+    pub issues: Connection<Issue>,
+}
